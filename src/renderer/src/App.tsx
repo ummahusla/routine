@@ -8,27 +8,14 @@ import { TopBar } from "./components/TopBar";
 import { EmptyState } from "./components/EmptyState";
 import { ChatThread } from "./components/ChatThread";
 import { FlowCanvas } from "./components/FlowCanvas";
-import { Minimap } from "./components/Minimap";
 import { FlowLegend } from "./components/FlowLegend";
 import { NodeInspector } from "./components/NodeInspector";
 import { PromptBox } from "./components/PromptBox";
+import type { ChatMessage, Flow, FlowEdge, FlowNode, FlowTemplateId, PaletteItem, RunState } from "./types";
 
-import {
-  TweaksPanel,
-  TweakSection,
-  TweakColor,
-  TweakRadio,
-  TweakToggle,
-  TweakButton,
-} from "./components/tweaks/TweaksPanel";
-import { useTweaks } from "./components/tweaks/useTweaks";
-import type { ChatMessage, Flow, FlowEdge, FlowNode, FlowTemplateId, PaletteItem, RunState, TweakSettings } from "./types";
-
-const TWEAK_DEFAULTS: TweakSettings = {
-  accent: "#5fc88f",
-  showMinimap: false,
-  density: "regular",
-};
+// Static design constants (replaces the previous tweakable values)
+const ACCENT = "#5fc88f";
+const DENSITY = "regular" as const;
 
 const INITIAL_TEMPLATE_ID: FlowTemplateId = "release_announce";
 
@@ -55,7 +42,6 @@ const SMART_ADD_ITEMS = {
 } satisfies Record<string, PaletteItem>;
 
 export function App() {
-  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [selectedId, setSelectedId] = useState<FlowTemplateId | null>(INITIAL_TEMPLATE_ID);
   const [flow, setFlow] = useState<Flow | null>(() => cloneFlow(FLOW_TEMPLATES[INITIAL_TEMPLATE_ID]));
   const [building, setBuilding] = useState(false);
@@ -116,6 +102,31 @@ export function App() {
       { role: "user", text: `Open flow: ${tpl.title}` },
       { role: "ai", text: tpl.summary },
     ]);
+  }
+
+  // Re-run the auto-layout: drop any user-set x/y coordinates and recompute
+  // each node's column (topological layer) and row (in-layer index).
+  function handleTidy(): void {
+    setFlow((current) => {
+      if (!current) return current;
+      const layers = topoLayers(current);
+      const placed = new Set<string>(layers.flat());
+      const orphans = current.nodes.filter((n) => !placed.has(n.id)).map((n) => n.id);
+      if (orphans.length) layers.push(orphans);
+      const layerOf: Record<string, number> = {};
+      const rowOf: Record<string, number> = {};
+      layers.forEach((ids, ci) => ids.forEach((id, ri) => {
+        layerOf[id] = ci;
+        rowOf[id] = ri;
+      }));
+      return {
+        ...current,
+        nodes: current.nodes.map((node) => {
+          const { x: _x, y: _y, _userPlaced: _placed, ...rest } = node;
+          return { ...rest, col: layerOf[node.id] ?? 0, row: rowOf[node.id] ?? 0 };
+        }),
+      };
+    });
   }
 
   function handleNew(): void {
@@ -445,7 +456,7 @@ ${userPrompt}`;
   }
 
   return (
-    <div className={`app density-${t.density}`} style={{ "--accent": t.accent } as CSSProperties}>
+    <div className={`app density-${DENSITY}`} style={{ "--accent": ACCENT } as CSSProperties}>
       <Sidebar
         flows={PREVIOUS_FLOWS}
         selectedId={selectedId}
@@ -455,7 +466,7 @@ ${userPrompt}`;
       />
 
       <main className="main">
-        <TopBar flow={flow} onHome={handleNew} />
+        <TopBar flow={flow} onHome={handleNew} onTidy={handleTidy} />
 
         {!flow && !building && <EmptyState onSubmit={handleSubmit} />}
 
@@ -475,7 +486,6 @@ ${userPrompt}`;
                   onAddEdge={handleAddEdge}
                   onPromptChange={handlePromptChange}
                 />
-                {t.showMinimap && flow && <Minimap flow={flow} />}
               </div>
               <FlowLegend />
             </div>
@@ -502,31 +512,6 @@ ${userPrompt}`;
           />
         )}
       </main>
-
-      <TweaksPanel>
-        <TweakSection label="Canvas" />
-        <TweakColor
-          label="Accent"
-          value={t.accent}
-          options={["#5fc88f", "#6b8cef", "#e3a857", "#c4a5f0"]}
-          onChange={(value) => setTweak("accent", value)}
-        />
-        <TweakRadio
-          label="Density"
-          value={t.density}
-          options={["compact", "regular"]}
-          onChange={(value) => setTweak("density", value)}
-        />
-        <TweakToggle
-          label="Show minimap"
-          value={t.showMinimap}
-          onChange={(value) => setTweak("showMinimap", value)}
-        />
-        <TweakSection label="Quick actions" />
-        <TweakButton label="Trigger build" onClick={() => handleSubmit("Daily digest of GitHub trending repos to my team's email")} />
-        <TweakButton label="Run current flow" onClick={handleRun} />
-        <TweakButton label="Reset run state" onClick={handleReset} />
-      </TweaksPanel>
     </div>
   );
 }
