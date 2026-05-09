@@ -3,7 +3,15 @@
     "allow": [
       "Bash(mkdir -p src/main src/preload src/renderer/src build resources .vscode)",
       "Bash(git mv *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Read(//private/tmp/design-pkg/flowbuild/project/**)",
+      "Read(//private/tmp/design-pkg2/flowbuild/project/**)",
+      "Bash(node --check src/renderer/src/data/flowTemplates.js)",
+      "Bash(node --check src/renderer/src/components/tweaks/useTweaks.js)",
+      "Bash(node --check src/renderer/src/utils/flow.js)",
+      "Bash(node --check src/renderer/src/data/typeColors.js)",
+      "Bash(node --check src/renderer/src/data/constants.js)"
     ]
   }
 }

@@ -57,6 +57,7 @@ export type FlowTemplateId =
   | "data_etl"
   | "ci_pipeline"
   | "lead_enrichment"
+  | "release_announce"
   | "meeting_notes";
 
 export type NodeStatus = "pending" | "running" | "done";

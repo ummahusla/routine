@@ -1,4 +1,4 @@
-import type { Flow, FlowTemplateId, PaletteItem, PreviousFlow, SuggestedPrompt } from "../types";
+import type { Flow, FlowTemplateId, PreviousFlow, SuggestedPrompt } from "../types";
 
 export const FLOW_TEMPLATES: Record<FlowTemplateId, Flow> = {
   github_digest: {
@@ -108,6 +108,37 @@ export const FLOW_TEMPLATES: Record<FlowTemplateId, Flow> = {
     ],
   },
 
+  release_announce: {
+    title: "Multi-channel release announcement",
+    summary: "Fan out a release note to email, Slack, Twitter, and the blog in parallel — then aggregate engagement metrics.",
+    nodes: [
+      { id: "n1", type: "trigger", icon: "tag", label: "New release tag", sub: "github · v*", col: 0, row: 2 },
+      { id: "n2", type: "http", icon: "http", label: "Fetch changelog", sub: "GET /releases/latest", col: 1, row: 2 },
+      { id: "n3", type: "llm", icon: "llm", label: "Draft announcement", sub: "claude-sonnet", col: 2, row: 2 },
+      { id: "n4", type: "human", icon: "user", label: "PM approval", sub: "slack · #marketing", col: 3, row: 2 },
+
+      { id: "n5", type: "transform", icon: "transform", label: "Format · email", sub: "mjml template", col: 4, row: 0 },
+      { id: "n6", type: "transform", icon: "transform", label: "Format · slack", sub: "block kit", col: 4, row: 1 },
+      { id: "n7", type: "transform", icon: "transform", label: "Format · twitter", sub: "thread · 4 posts", col: 4, row: 3 },
+      { id: "n8", type: "transform", icon: "doc", label: "Format · blog", sub: "mdx · frontmatter", col: 4, row: 4 },
+
+      { id: "n9", type: "output", icon: "mail", label: "Send · resend", sub: "12,847 subscribers", col: 5, row: 0 },
+      { id: "n10", type: "output", icon: "slack", label: "Post · slack", sub: "#announcements", col: 5, row: 1 },
+      { id: "n11", type: "output", icon: "http", label: "Post · twitter", sub: "POST /tweets", col: 5, row: 3 },
+      { id: "n12", type: "output", icon: "doc", label: "Publish · blog", sub: "POST /posts", col: 5, row: 4 },
+
+      { id: "n13", type: "transform", icon: "transform", label: "Aggregate metrics", sub: "merge channels", col: 6, row: 2 },
+      { id: "n14", type: "storage", icon: "db", label: "Save to warehouse", sub: "bigquery: launches", col: 7, row: 2 },
+    ],
+    edges: [
+      ["n1", "n2"], ["n2", "n3"], ["n3", "n4"],
+      ["n4", "n5"], ["n4", "n6"], ["n4", "n7"], ["n4", "n8"],
+      ["n5", "n9"], ["n6", "n10"], ["n7", "n11"], ["n8", "n12"],
+      ["n9", "n13"], ["n10", "n13"], ["n11", "n13"], ["n12", "n13"],
+      ["n13", "n14"],
+    ],
+  },
+
   meeting_notes: {
     title: "Meeting notes → action items",
     summary: "Transcribe the call, extract decisions and action items, and file them in the right tools.",
@@ -133,7 +164,8 @@ export const FLOW_TEMPLATES: Record<FlowTemplateId, Flow> = {
 export function matchTemplate(prompt: string): FlowTemplateId {
   const p = prompt.toLowerCase();
   const has = (...words: string[]): boolean => words.some((w) => p.includes(w));
-  if (has("ci", "deploy", "pipeline", "release", "build", "github action", "test")) return "ci_pipeline";
+  if (has("announce", "launch", "multi-channel", "multichannel", "broadcast", "fan out", "parallel")) return "release_announce";
+  if (has("ci", "pipeline", "build", "github action", "test matrix")) return "ci_pipeline";
   if (has("support", "ticket", "zendesk", "customer", "triage", "intercom")) return "support_triage";
   if (has("etl", "warehouse", "metrics", "analytics", "dashboard", "stripe", "mrr")) return "data_etl";
   if (has("lead", "outreach", "crm", "hubspot", "salesforce", "enrich", "clearbit")) return "lead_enrichment";
@@ -143,7 +175,8 @@ export function matchTemplate(prompt: string): FlowTemplateId {
 }
 
 export const PREVIOUS_FLOWS: PreviousFlow[] = [
-  { id: "github_digest", label: "GitHub trending digest", when: "2h ago", active: true, status: "deployed" },
+  { id: "release_announce", label: "Multi-channel release announcement", when: "1h ago", active: true, status: "deployed" },
+  { id: "github_digest", label: "GitHub trending digest", when: "3h ago", status: "deployed" },
   { id: "support_triage", label: "Support ticket triage", when: "Yesterday", status: "draft" },
   { id: "data_etl", label: "Daily analytics ETL", when: "2 days", status: "deployed" },
   { id: "ci_pipeline", label: "ci.yml — push to main", when: "3 days", status: "deployed" },
@@ -152,24 +185,8 @@ export const PREVIOUS_FLOWS: PreviousFlow[] = [
 ];
 
 export const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
+  { icon: "tag", label: "Announce a release in parallel to email, Slack, Twitter, and the blog" },
   { icon: "schedule", label: "Daily digest of GitHub trending repos to my team's email" },
   { icon: "webhook", label: "Triage Zendesk tickets and route urgent ones to Slack" },
-  { icon: "transform", label: "ETL Stripe + Postgres into a daily metrics table" },
   { icon: "llm", label: "Turn meeting recordings into Linear tickets and a Notion doc" },
-];
-
-export const PALETTE_ITEMS: PaletteItem[] = [
-  { type: "trigger", icon: "schedule", label: "Schedule", sub: "every day · 09:00" },
-  { type: "trigger", icon: "webhook", label: "Webhook", sub: "POST /event" },
-  { type: "http", icon: "http", label: "HTTP request", sub: "GET /…" },
-  { type: "llm", icon: "llm", label: "LLM call", sub: "claude-sonnet" },
-  { type: "transform", icon: "transform", label: "Transform", sub: "map · reduce" },
-  { type: "transform", icon: "code", label: "Code", sub: "javascript" },
-  { type: "filter", icon: "filter", label: "Filter", sub: "where …" },
-  { type: "branch", icon: "branch", label: "Branch", sub: "if / else" },
-  { type: "storage", icon: "db", label: "Database", sub: "supabase · query" },
-  { type: "storage", icon: "sheet", label: "Spreadsheet", sub: "google sheets" },
-  { type: "output", icon: "mail", label: "Send email", sub: "smtp" },
-  { type: "output", icon: "slack", label: "Slack message", sub: "#channel" },
-  { type: "human", icon: "user", label: "Human approval", sub: "slack approval" },
 ];

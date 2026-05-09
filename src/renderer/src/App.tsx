@@ -1,6 +1,6 @@
 import { useRef, useState, type CSSProperties } from "react";
 import { FLOW_TEMPLATES, PREVIOUS_FLOWS, SUGGESTED_PROMPTS, matchTemplate } from "./data/flowTemplates";
-import { NODE_W, GAP_X } from "./data/constants";
+import { NODE_W, NODE_H, GAP_X } from "./data/constants";
 import { cloneFlow, topoLayers, nodePos } from "./utils/flow";
 
 import { Sidebar } from "./components/Sidebar";
@@ -30,15 +30,43 @@ const TWEAK_DEFAULTS: TweakSettings = {
   density: "regular",
 };
 
+const INITIAL_TEMPLATE_ID: FlowTemplateId = "release_announce";
+
+const SMART_ADD_ITEMS = {
+  slack: { type: "output", icon: "slack", label: "Slack message", sub: "#channel" },
+  email: { type: "output", icon: "mail", label: "Send email", sub: "smtp" },
+  webhook: { type: "trigger", icon: "webhook", label: "Webhook", sub: "POST /event" },
+  http: { type: "http", icon: "http", label: "HTTP request", sub: "GET /…" },
+  llm: { type: "llm", icon: "llm", label: "LLM call", sub: "claude-sonnet" },
+  filter: { type: "filter", icon: "filter", label: "Filter", sub: "where …" },
+  approval: { type: "human", icon: "user", label: "Human approval", sub: "slack approval" },
+  database: { type: "storage", icon: "db", label: "Database", sub: "supabase · query" },
+  spreadsheet: { type: "storage", icon: "sheet", label: "Spreadsheet", sub: "google sheets" },
+  schedule: { type: "trigger", icon: "schedule", label: "Schedule", sub: "every day · 09:00" },
+  transform: { type: "transform", icon: "transform", label: "Transform", sub: "map · reduce" },
+  code: { type: "transform", icon: "code", label: "Code", sub: "javascript" },
+} satisfies Record<string, PaletteItem>;
+
 export function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [selectedId, setSelectedId] = useState<FlowTemplateId | null>(null);
-  const [flow, setFlow] = useState<Flow | null>(null);
+  const [selectedId, setSelectedId] = useState<FlowTemplateId | null>(INITIAL_TEMPLATE_ID);
+  const [flow, setFlow] = useState<Flow | null>(() => cloneFlow(FLOW_TEMPLATES[INITIAL_TEMPLATE_ID]));
   const [building, setBuilding] = useState(false);
   const [running, setRunning] = useState(false);
   const [runState, setRunState] = useState<RunState>({});
   const [refineVal, setRefineVal] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    { role: "user", text: "Announce a release in parallel to email, Slack, Twitter, and the blog" },
+    {
+      role: "ai",
+      text: FLOW_TEMPLATES.release_announce.summary,
+      steps: [
+        "Identified 14 steps with a 4-way fan-out and fan-in",
+        "Mapped to 6 node types in your workspace",
+        "Connectors are configured · ready to execute",
+      ],
+    },
+  ]);
   const [focusId, setFocusId] = useState<string | null>(null);
   const stopRef = useRef(false);
 
@@ -107,6 +135,7 @@ export function App() {
         layer.forEach((id) => (next[id] = "running"));
         return next;
       });
+      requestAnimationFrame(() => scrollToNodes(layer));
       await new Promise((resolve) => window.setTimeout(resolve, 650));
       if (stopRef.current) break;
       setRunState((state) => {
@@ -118,6 +147,29 @@ export function App() {
     }
 
     setRunning(false);
+  }
+
+  function scrollToNodes(ids: string[]): void {
+    const wrap = document.querySelector<HTMLElement>(".cf-canvas-wrap");
+    if (!wrap || !flow) return;
+    const targets = flow.nodes.filter((node) => ids.includes(node.id));
+    if (!targets.length) return;
+
+    const xs = targets.map((node) => nodePos(node).x);
+    const ys = targets.map((node) => nodePos(node).y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs) + NODE_W;
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys) + NODE_H;
+    const padOuter = 16;
+    const cx = padOuter + (minX + maxX) / 2;
+    const cy = padOuter + (minY + maxY) / 2;
+
+    wrap.scrollTo({
+      left: Math.max(0, cx - wrap.clientWidth / 2),
+      top: Math.max(0, cy - wrap.clientHeight / 2),
+      behavior: "smooth",
+    });
   }
 
   function handleStop(): void {
@@ -139,13 +191,30 @@ export function App() {
   }
 
   function handleDeleteNode(id: string): void {
-    setFlow((current) =>
-      current && {
+    setFlow((current) => {
+      if (!current) return current;
+
+      const predecessors = current.edges.filter(([, to]) => to === id).map(([from]) => from);
+      const successors = current.edges.filter(([from]) => from === id).map(([, to]) => to);
+      const remaining = current.edges.filter(([from, to]) => from !== id && to !== id);
+      const existing = new Set(remaining.map(([from, to]) => `${from}>${to}`));
+      const bridges: FlowEdge[] = [];
+
+      for (const from of predecessors) {
+        for (const to of successors) {
+          if (from !== to && !existing.has(`${from}>${to}`)) {
+            bridges.push([from, to]);
+            existing.add(`${from}>${to}`);
+          }
+        }
+      }
+
+      return {
         ...current,
         nodes: current.nodes.filter((node) => node.id !== id),
-        edges: current.edges.filter(([from, to]) => from !== id && to !== id),
-      },
-    );
+        edges: [...remaining, ...bridges],
+      };
+    });
     setRunState((state) => {
       const next = { ...state };
       delete next[id];
@@ -189,8 +258,43 @@ export function App() {
   function handleRefine(): void {
     const value = refineVal.trim();
     if (!value) return;
+
+    const lower = value.toLowerCase();
     setMessages((current) => [...current, { role: "user", text: value }]);
     setRefineVal("");
+
+    if (/\b(run|execute|go|start|kick)\b/.test(lower) && !/stop/.test(lower)) {
+      setMessages((current) => [...current, { role: "ai", text: "Executing now — watch the canvas." }]);
+      window.setTimeout(() => void handleRun(), 250);
+      return;
+    }
+
+    if (/\b(stop|cancel|halt|abort)\b/.test(lower)) {
+      handleStop();
+      setMessages((current) => [...current, { role: "ai", text: "Stopped. Nothing was rolled back." }]);
+      return;
+    }
+
+    if (/\b(reset|clear)\b/.test(lower)) {
+      handleReset();
+      setMessages((current) => [...current, { role: "ai", text: "Cleared the run state." }]);
+      return;
+    }
+
+    const addMatch = lower.match(
+      /add (?:a |an )?(slack|email|webhook|http|llm|filter|approval|database|spreadsheet|schedule|transform|code)/,
+    );
+    if (addMatch) {
+      const kind = addMatch[1] as keyof typeof SMART_ADD_ITEMS;
+      const spec = SMART_ADD_ITEMS[kind];
+      handleAddNode(spec);
+      setMessages((current) => [
+        ...current,
+        { role: "ai", text: `Added a ${spec.label} step at the end. Drag it where you want it.` },
+      ]);
+      return;
+    }
+
     setBuilding(true);
     window.setTimeout(() => {
       const tplId = matchTemplate(value);
@@ -215,15 +319,7 @@ export function App() {
       <Sidebar flows={PREVIOUS_FLOWS} selectedId={selectedId} onSelect={handleSelect} onNew={handleNew} />
 
       <main className="main">
-        <TopBar
-          flow={flow}
-          runState={runState}
-          building={building}
-          running={running}
-          onRun={handleRun}
-          onStop={handleStop}
-          onReset={handleReset}
-        />
+        <TopBar flow={flow} runState={runState} building={building} running={running} onHome={handleNew} />
 
         {!flow && !building && <EmptyState onSubmit={handleSubmit} suggestions={SUGGESTED_PROMPTS} />}
 
@@ -240,7 +336,6 @@ export function App() {
                 onFocus={setFocusId}
                 onMoveNode={handleMoveNode}
                 onDeleteNode={handleDeleteNode}
-                onAddNode={handleAddNode}
               />
               {t.showMinimap && flow && <Minimap flow={flow} />}
               <FlowLegend />
