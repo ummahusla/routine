@@ -612,6 +612,64 @@ kbd {
 .tb-btn-primary:hover:not(:disabled) {
   background: #4f46e5;
 }
+/* Idle disabled: read as inactive (not the same purple as Play). Running keeps primary colors via .tb-btn-running */
+.tb-btn.tb-btn-primary:disabled:not(.tb-btn-running) {
+  opacity: 1;
+  background: var(--surface-3);
+  color: var(--dim);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+.tb-btn-primary.tb-btn-running:disabled {
+  opacity: 1;
+  cursor: wait;
+  color: #ddd8ff;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  background:
+    linear-gradient(165deg, rgba(99, 102, 241, 0.22) 0%, rgba(45, 42, 82, 0.85) 42%, rgba(24, 24, 34, 0.92) 100%);
+  border: 1px solid rgba(139, 146, 219, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+  animation: tb-run-border-pulse 1.6s ease-in-out infinite;
+}
+.tb-btn-running-label {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.92;
+}
+@keyframes tb-run-border-pulse {
+  0%,
+  100% {
+    border-color: rgba(129, 136, 207, 0.38);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.35);
+  }
+  50% {
+    border-color: rgba(165, 180, 252, 0.62);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 12px rgba(99, 102, 241, 0.22),
+      0 0 0 1px rgba(0, 0, 0, 0.35);
+  }
+}
+.tb-spin-icon {
+  flex-shrink: 0;
+  animation: tb-spin-icon-rotate 0.7s linear infinite;
+}
+.tb-btn-running .tb-spin-track {
+  stroke: rgba(255, 255, 255, 0.14);
+}
+.tb-btn-running .tb-spin-head {
+  stroke: #a5b4fc;
+}
+@keyframes tb-spin-icon-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
 /* Tidy: same box model as .tb-btn; surface styling only */
 .tb-action {
   background: var(--surface-2);

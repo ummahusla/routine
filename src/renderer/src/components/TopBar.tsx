@@ -30,9 +30,11 @@ export function TopBar({ flow, onHome, onTidy, onPlay, canRun, running }: TopBar
       </div>
       <div className="tb-r">
         <button
-          className="tb-btn tb-btn-primary"
+          type="button"
+          className={`tb-btn tb-btn-primary ${running ? "tb-btn-running" : ""}`}
           onClick={onPlay}
-          disabled={!canRun || running}
+          disabled={running || !canRun}
+          aria-busy={running}
           title={
             !canRun
               ? "Add input + output nodes; remove branch/merge to enable execution"
@@ -41,7 +43,33 @@ export function TopBar({ flow, onHome, onTidy, onPlay, canRun, running }: TopBar
                 : "Execute flow"
           }
         >
-          {running ? "Running…" : "▶ Play"}
+          {running ? (
+            <>
+              <svg className="tb-spin-icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden>
+                <circle
+                  className="tb-spin-track"
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  strokeWidth="2"
+                />
+                <path
+                  className="tb-spin-head"
+                  d="M12 3a9 9 0 0 1 9 9"
+                  fill="none"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="tb-btn-running-label">Running…</span>
+            </>
+          ) : (
+            <>
+              <span aria-hidden>▶</span>
+              <span>Play</span>
+            </>
+          )}
         </button>
         {flow && (
           <button className="tb-btn tb-action" onClick={onTidy} title="Auto-arrange the canvas">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { toast } from "sonner";
 import { NODE_W, NODE_H, GAP_X } from "./data/constants";
 import { topoLayers, nodePos } from "./utils/flow";
 import { flowbuilderStateToFlow } from "./utils/flowbuilder";
@@ -115,6 +116,8 @@ export function App() {
   // animates the canvas after a build; the states below track an actual
   // engine run driven by the Play button via window.api.run.*.
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  /** True from Play until execute/watch settles or run_end; avoids double-starts before activeRunId exists */
+  const [engineRunBusy, setEngineRunBusy] = useState(false);
   const [, setRunStatuses] = useState<Map<string, NodeRunStatus>>(new Map());
   const [nodeStreams, setNodeStreams] = useState<Map<string, string>>(new Map());
   const [nodeErrors, setNodeErrors] = useState<Map<string, string>>(new Map());
@@ -134,6 +137,7 @@ export function App() {
     typeof window === "undefined" ? false : window.innerWidth < 820,
   );
   const stopRef = useRef(false);
+  const engineRunLockRef = useRef(false);
   const prevSessionIdRef = useRef<string | null>(null);
   const lastFlowbuilderCallRef = useRef<string | null>(null);
 
@@ -499,7 +503,7 @@ export function App() {
   // runner is still used by the chat-driven /run command and the build-time
   // animation, since those don't necessarily target the engine yet.
   function handlePlay(): void {
-    if (!selectedSessionId || !fbState) return;
+    if (!selectedSessionId || !fbState || engineRunBusy || activeRunId !== null) return;
     const missing: RequiredInputSpec[] = fbState.nodes
       .filter((n): n is Extract<typeof n, { type: "input" }> => n.type === "input")
       .filter((n) => n.required && (n.value === undefined || n.value === null || n.value === ""))
@@ -515,8 +519,16 @@ export function App() {
     void launchRun();
   }
 
+  function releaseEngineRunLock(): void {
+    engineRunLockRef.current = false;
+    setEngineRunBusy(false);
+  }
+
   async function launchRun(inputs?: Record<string, unknown>): Promise<void> {
     if (!selectedSessionId) return;
+    if (engineRunLockRef.current) return;
+    engineRunLockRef.current = true;
+    setEngineRunBusy(true);
     setRunStatuses(new Map());
     setNodeStreams(new Map());
     setNodeErrors(new Map());
@@ -528,19 +540,22 @@ export function App() {
       return cleared;
     });
 
+    try {
     const r = await window.api.run.execute(
       inputs ? { sessionId: selectedSessionId, inputs } : { sessionId: selectedSessionId },
     );
     if (!r.ok) {
-      setError(r.error);
+      toast.error(r.error);
+      releaseEngineRunLock();
       return;
     }
     setActiveRunId(r.runId);
 
     const watch = await window.api.run.watch({ sessionId: selectedSessionId, runId: r.runId });
     if (!watch.ok) {
-      setError(watch.error);
+      toast.error(watch.error);
       setActiveRunId(null);
+      releaseEngineRunLock();
       return;
     }
     const subscriptionId = watch.subscriptionId;
@@ -572,12 +587,23 @@ export function App() {
         off();
         void window.api.run.unwatch({ subscriptionId });
         setActiveRunId(null);
+        releaseEngineRunLock();
         setRunListTick((t) => t + 1);
+        const shortId = runId.slice(0, 8);
         if (ev.status === "failed") {
-          setError(ev.error ?? "Run failed");
+          toast.error(ev.error ?? "Run failed", { description: shortId });
+        } else if (ev.status === "succeeded") {
+          toast.success("Run finished", { description: `Run ${shortId}` });
+        } else if (ev.status === "cancelled") {
+          toast.message("Run cancelled", { description: shortId });
         }
       }
     });
+    } catch (launchErr: unknown) {
+      toast.error(launchErr instanceof Error ? launchErr.message : "Run failed to start");
+      setActiveRunId(null);
+      releaseEngineRunLock();
+    }
   }
 
   function handleReset(): void {
@@ -794,7 +820,7 @@ export function App() {
           onTidy={handleTidy}
           onPlay={() => handlePlay()}
           canRun={canRun}
-          running={activeRunId !== null}
+          running={engineRunBusy || activeRunId !== null}
         />
 
         {!selectedSessionId && !flow && !building && <EmptyState onSubmit={(text) => void handleSubmit(text)} />}
