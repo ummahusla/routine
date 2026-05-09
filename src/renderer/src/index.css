@@ -45,6 +45,26 @@ kbd {
   color: var(--muted);
 }
 
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* App layout */
 #root,
 .app {
@@ -1919,6 +1939,7 @@ body.is-panning * {
 }
 .fc-node-prompt {
   padding: 0;
+  display: flex;
   flex-direction: column;
   align-items: stretch;
 }
@@ -2907,29 +2928,75 @@ body.is-panning * {
     width: calc(100vw - 70px);
   }
 }
+.fc-llm-prompt-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  border-radius: 0 0 9px 9px;
+  overflow: hidden;
+}
+.fc-llm-prompt-wrap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 18px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(20, 22, 32, 0) 0%,
+    rgba(20, 22, 32, 0.85) 100%
+  );
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.fc-llm-prompt-wrap[data-overflow="more"]::after {
+  opacity: 1;
+}
 .fc-llm-prompt {
-  width: 100%;
-  font-family: inherit;
-  font-size: 12px;
-  background: rgba(0, 0, 0, 0.2);
-  color: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-  padding: 4px;
+  flex: 1;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+  color: var(--text);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.5;
   resize: none;
+  outline: none;
+  transition: background 120ms ease;
+}
+.fc-llm-prompt:hover {
+  background: rgba(125, 145, 255, 0.04);
+}
+.fc-llm-prompt:focus {
+  background: rgba(125, 145, 255, 0.06);
+}
+.fc-llm-prompt::placeholder {
+  color: var(--dim);
 }
 .fc-llm-stream {
-  margin-top: 6px;
-  padding: 4px;
+  margin: 0 10px 8px;
+  padding: 6px 8px;
   font-size: 11px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 4px;
+  line-height: 1.45;
+  background: rgba(125, 145, 255, 0.08);
+  border: 1px solid rgba(125, 145, 255, 0.16);
+  border-radius: 6px;
   white-space: pre-wrap;
   max-height: 120px;
   overflow-y: auto;
+  font-family: "Geist Mono", ui-monospace, monospace;
 }
 .fc-llm-error {
-  margin-top: 6px;
+  margin: 0 10px 8px;
   font-size: 11px;
   color: #fca5a5;
 }

@@ -360,6 +360,45 @@ function NodeBody({
     );
   }
 
+  if (source.type === "llm") {
+    const promptEmpty = !source.prompt || source.prompt.trim() === "";
+    return (
+      <>
+        <div className="ins-section">
+          <div className="ins-h2">Prompt</div>
+          {promptEmpty ? (
+            <div className="ins-empty">No prompt set.</div>
+          ) : (
+            <pre className="ins-code">{source.prompt}</pre>
+          )}
+        </div>
+        {source.systemPrompt ? (
+          <div className="ins-section">
+            <div className="ins-h2">System prompt</div>
+            <pre className="ins-code">{source.systemPrompt}</pre>
+          </div>
+        ) : null}
+        <div className="ins-section">
+          <div className="ins-h2">Model</div>
+          <ul className="ins-schema">
+            <li>
+              <span>model</span>
+              <span>{source.model ?? "claude-sonnet-4-6"}</span>
+            </li>
+            <li>
+              <span>maxTokens</span>
+              <span>{source.maxTokens ?? 4096}</span>
+            </li>
+            <li>
+              <span>temperature</span>
+              <span>{source.temperature ?? 0.7}</span>
+            </li>
+          </ul>
+        </div>
+      </>
+    );
+  }
+
   if (source.type !== "flow") return null;
 
   const params = source.params ?? {};

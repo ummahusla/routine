@@ -144,6 +144,7 @@ export function flowbuilderStateToFlow(manifest: FlowbuilderManifest, state: Flo
       col: layerOf[node.id] ?? 0,
       row: rowOf[node.id] ?? 0,
       source: node,
+      ...(node.type === "llm" ? { prompt: node.prompt } : {}),
     };
   });
 
