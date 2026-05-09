@@ -392,6 +392,13 @@ kbd {
   max-height: 220px;
   overflow-y: auto;
 }
+.sb-extras::-webkit-scrollbar {
+  width: 6px;
+}
+.sb-extras::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
+}
 
 /* RunSidebar */
 .rs-list {
@@ -2509,6 +2516,38 @@ body.is-panning * {
 .app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-meta,
 .app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-ico {
   display: none;
+}
+
+/* RunSidebar: collapse each row into a small colored dot in rail mode. */
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-list {
+  padding: 6px 0;
+  align-items: center;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-head,
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-time,
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-id {
+  display: none;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-row {
+  width: 28px;
+  min-width: 0;
+  padding: 4px;
+  justify-content: center;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-status {
+  font-size: 0;
+  min-width: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  opacity: 1;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-succeeded .rs-status {
+  background: #86efac;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-failed .rs-status {
+  background: #fca5a5;
 }
 
 @media (max-width: 820px) {
