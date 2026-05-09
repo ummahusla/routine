@@ -154,6 +154,7 @@ export function App() {
   useEffect(() => {
     setChatError(null);
     setConfirmClearOpen(false);
+    setSelectedModel(undefined);
   }, [selectedSessionId]);
 
   useEffect(() => {

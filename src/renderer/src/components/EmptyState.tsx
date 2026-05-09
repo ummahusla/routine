@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ModelInfo } from "@flow-build/core";
 import { PromptBox } from "./PromptBox";
 
@@ -12,6 +12,12 @@ type EmptyStateProps = {
 export function EmptyState({ onSubmit, models, initialModel, onPickModel }: EmptyStateProps) {
   const [val, setVal] = useState("");
   const [model, setModel] = useState(initialModel);
+
+  // globalDefault arrives async on cold start; sync local model so user sees
+  // their stored default instead of the synchronous "composer-2" placeholder.
+  useEffect(() => {
+    setModel(initialModel);
+  }, [initialModel]);
 
   function handleModelChange(id: string): void {
     setModel(id);
