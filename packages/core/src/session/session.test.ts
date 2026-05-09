@@ -297,7 +297,77 @@ describe("Session.send", () => {
     const lastLine = lines[lines.length - 1];
     expect(lastLine.kind).toBe("turn_end");
     expect(lastLine.status).toBe("failed");
-  }, 10_000);
+  }, 15_000);
+
+  it("watchdog synthesizes tool_end ok=false BEFORE error and includes SDK-regression message", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    let releaseStream!: () => void;
+    const streamPark = new Promise<void>((r) => (releaseStream = r));
+    const fa = makeFakeAgent({ waitResult: { status: "completed" } });
+    fa.run.cancel = vi.fn(async () => {
+      releaseStream();
+    });
+    fa.run.stream = async function* () {
+      yield {
+        type: "tool_call",
+        call_id: "abc",
+        name: "Read",
+        status: "running",
+        args: { timeout: 50 },
+      };
+      await streamPark;
+    };
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const onEventCalls: Array<{ type: string; [k: string]: unknown }> = [];
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({
+      baseDir: dir,
+      sessionId: "S1",
+      apiKey: "crsr_test",
+      retry: { attempts: 1 },
+    });
+    await expect(
+      session.send("hi", {
+        onEvent: (ev: { type: string; [k: string]: unknown }) => {
+          onEventCalls.push(ev);
+        },
+      }),
+    ).rejects.toThrow(/known regression in @cursor\/sdk 1\.0\.12/);
+
+    // Verify the JSONL stream contains a tool_end ok=false BEFORE the error event.
+    const lines = readFileSync(eventsPath(dir, "S1"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const toolEndIdx = lines.findIndex(
+      (l) => l.kind === "tool_end" && l.callId === "abc" && l.ok === false,
+    );
+    const errIdx = lines.findIndex((l) => l.kind === "error");
+    expect(toolEndIdx).toBeGreaterThanOrEqual(0);
+    expect(errIdx).toBeGreaterThanOrEqual(0);
+    expect(toolEndIdx).toBeLessThan(errIdx);
+
+    // Verify the synthesized tool_end shape.
+    const synthEnd = lines[toolEndIdx];
+    expect(synthEnd.name).toBe("Read");
+    expect(synthEnd.ok).toBe(false);
+    expect(synthEnd.result).toMatchObject({ error: "watchdog timeout" });
+    expect(typeof synthEnd.result.deadlineMs).toBe("number");
+
+    // Verify the error message text mentions the SDK version regression.
+    const errLine = lines[errIdx];
+    expect(errLine.message).toMatch(/known regression in @cursor\/sdk 1\.0\.12/);
+
+    // Verify onEvent saw tool_end before error, too (UI subscribes here).
+    const onEventToolEndIdx = onEventCalls.findIndex(
+      (e) => e.type === "tool_end" && e.callId === "abc" && e.ok === false,
+    );
+    const onEventErrIdx = onEventCalls.findIndex((e) => e.type === "error");
+    expect(onEventToolEndIdx).toBeGreaterThanOrEqual(0);
+    expect(onEventErrIdx).toBeGreaterThanOrEqual(0);
+    expect(onEventToolEndIdx).toBeLessThan(onEventErrIdx);
+  }, 15_000);
 
   it("cancel mid-turn produces status=cancelled", async () => {
     initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });

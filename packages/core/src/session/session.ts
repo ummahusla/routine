@@ -196,7 +196,7 @@ export class Session {
     // mark the turn failed so callers can recover instead of waiting
     // forever. Declared here so the outer finally can clear leftovers.
     const TOOL_WATCHDOG_DEFAULT_MS = 60_000;
-    const TOOL_WATCHDOG_SLACK_MS = 5_000;
+    const TOOL_WATCHDOG_SLACK_MS = 10_000;
     const TOOL_WATCHDOG_MAX_MS = 600_000;
     const toolWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
     const clearAllToolWatchdogs = (): void => {
@@ -223,6 +223,11 @@ export class Session {
       // FLOW_BUILD_SAFE_SHELL=0 escape hatch lets operators bypass entirely
       // if the upstream SDK fix lands. Default-on so new sessions get the
       // shell-deny + sandboxed sh tool automatically.
+      // Serialization rationale: the SessionBusyError check at the top of send()
+      // guarantees only one in-flight send() per Session, so the if/await/assign
+      // below is effectively single-threaded. Don't move it above the busy check
+      // or two concurrent sends could both fire startSafeShellForSession and
+      // leak an HTTP listener + a hooks-file install.
       const safeShellEnabled = process.env.FLOW_BUILD_SAFE_SHELL !== "0";
       let mergedMcpServers = mcpServers;
       if (safeShellEnabled) {
@@ -374,10 +379,45 @@ export class Session {
         const deadline = baseMs + TOOL_WATCHDOG_SLACK_MS;
         const t = setTimeout(() => {
           toolWatchdogs.delete(callId);
-          this.logger.warn("tool watchdog fired", { callId, name, deadlineMs: deadline });
+          this.logger.warn("tool watchdog fired", {
+            callId,
+            name,
+            deadlineMs: deadline,
+            sdkVersion: "1.0.12",
+          });
+          // 1) Synthesize a tool_end so the UI doesn't show a stuck running call.
+          //    Route through host.intercept + persistEvent + onEvent, the same path
+          //    real tool_end events use, so JSONL replay captures it identically.
+          const synthetic: HarnessEvent = {
+            type: "tool_end",
+            name,
+            callId,
+            ok: false,
+            ...(argsObj !== undefined ? { args: argsObj } : {}),
+            result: { error: "watchdog timeout", deadlineMs: deadline },
+          };
+          for (const e2 of host.intercept(synthetic, ctx)) {
+            persistEvent(e2);
+            onEvent({ ...e2, turnId });
+            if (e2.type === "tool_end") {
+              host.fireToolCall(
+                {
+                  callId,
+                  name,
+                  status: "error",
+                  ...(e2.args !== undefined ? { args: e2.args } : {}),
+                  ...(e2.result !== undefined ? { result: e2.result } : {}),
+                },
+                ctx,
+              );
+            }
+          }
+          // 2) Surface the error and abort the run, as before — but with a clearer
+          //    message that calls out the SDK regression.
           midStreamError = mapToHarnessError(
             new Error(
-              `tool "${name}" produced no result after ${deadline}ms (no tool_end from SDK). aborting turn.`,
+              `tool "${name}" produced no result after ${deadline}ms ` +
+                `(no tool_end from Cursor SDK; known regression in @cursor/sdk 1.0.12). aborting turn.`,
             ),
           );
           status = "failed";
