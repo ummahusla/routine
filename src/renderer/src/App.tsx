@@ -99,11 +99,36 @@ export function App() {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatHeight, setChatHeight] = useState(180);
   const [reloadKey, setReloadKey] = useState(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("flowbuild:sidebarCollapsed") === "1";
+  });
+  const [narrowViewport, setNarrowViewport] = useState<boolean>(() =>
+    typeof window === "undefined" ? false : window.innerWidth < 820,
+  );
   const stopRef = useRef(false);
 
   const { turns, send, cancel } = useSession(selectedSessionId ?? undefined, reloadKey);
   const lastTurn = turns[turns.length - 1];
   const isRunning = lastTurn?.status === "running";
+
+  const isRail = sidebarCollapsed || narrowViewport;
+
+  useEffect(() => {
+    function onResize(): void {
+      setNarrowViewport(window.innerWidth < 820);
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const handleToggleSidebar = useCallback((): void => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem("flowbuild:sidebarCollapsed", next ? "1" : "0");
+      return next;
+    });
+  }, []);
 
   const readOnlySession = Boolean(selectedSessionId);
 
@@ -487,7 +512,10 @@ export function App() {
   }
 
   return (
-    <div className={`app density-${DENSITY}`} style={{ "--accent": ACCENT } as CSSProperties}>
+    <div
+      className={`app density-${DENSITY} ${isRail ? "is-rail" : ""}`}
+      style={{ "--accent": ACCENT } as CSSProperties}
+    >
       <Sidebar
         sessions={sessions}
         selectedId={selectedSessionId}
@@ -495,6 +523,9 @@ export function App() {
         loading={loadingSessions}
         error={error}
         baseDir={baseDir}
+        collapsed={isRail}
+        canToggleCollapse={!narrowViewport}
+        onToggleCollapse={handleToggleSidebar}
         onSelect={handleSelect}
         onNew={handleNew}
         onRefresh={handleRefresh}

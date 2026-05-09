@@ -8,6 +8,21 @@ type FlowItemProps = {
   onClick: () => void;
 };
 
+function initials(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "?";
+  const parts = trimmed.split(/[\s_-]+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function chipColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue} 55% 38%)`;
+}
+
 function relativeTime(value: string): string {
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) return value;
@@ -26,8 +41,15 @@ function relativeTime(value: string): string {
 
 function FlowItem({ session, active, onClick }: FlowItemProps) {
   return (
-    <button className={`sb-item sb-session ${active ? "is-active" : ""}`} onClick={onClick}>
-      <span className="sb-dot sb-dot-deployed" />
+    <button
+      className={`sb-item sb-session ${active ? "is-active" : ""}`}
+      onClick={onClick}
+      title={session.name}
+    >
+      <span className="sb-chip" style={{ background: chipColor(session.id) }}>
+        {initials(session.name)}
+        <span className="sb-chip-dot sb-chip-dot-deployed" />
+      </span>
       <span className="sb-item-main">
         <span className="sb-item-label">{session.name}</span>
         <span className="sb-item-id">{session.id}</span>
@@ -47,6 +69,9 @@ type SidebarProps = {
   loading: boolean;
   error: string | null;
   baseDir: string;
+  collapsed: boolean;
+  canToggleCollapse: boolean;
+  onToggleCollapse: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
   onRefresh: () => void;
@@ -59,6 +84,9 @@ export function Sidebar({
   loading,
   error,
   baseDir,
+  collapsed,
+  canToggleCollapse,
+  onToggleCollapse,
   onSelect,
   onNew,
   onRefresh,
@@ -81,6 +109,22 @@ export function Sidebar({
         </div>
         <div className="sb-brand-name">FlowBuild</div>
         <div className="sb-brand-tag">beta</div>
+        {canToggleCollapse && (
+          <button
+            className="sb-toggle"
+            onClick={onToggleCollapse}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">
+              {collapsed ? (
+                <path d="M9 6l6 6-6 6" />
+              ) : (
+                <path d="M15 6l-6 6 6 6" />
+              )}
+            </svg>
+          </button>
+        )}
       </div>
 
       <button className={`sb-new ${localActive ? "is-active" : ""}`} onClick={onNew}>
