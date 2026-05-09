@@ -33,3 +33,58 @@ describe("FALLBACK_MODELS", () => {
     ]);
   });
 });
+
+describe("listModels", () => {
+  it("returns FALLBACK_MODELS when apiKey is missing", async () => {
+    const { listModels, FALLBACK_MODELS } = await import(MODULE);
+    const result = await listModels({});
+    expect(result).toEqual(FALLBACK_MODELS);
+  });
+
+  it("returns FALLBACK_MODELS when SDK throws", async () => {
+    vi.doMock("@cursor/sdk", () => ({
+      Cursor: {
+        models: { list: vi.fn(async () => { throw new Error("boom"); }) },
+      },
+      Agent: { create: vi.fn() },
+    }));
+    const { listModels, FALLBACK_MODELS } = await import(MODULE);
+    const result = await listModels({ apiKey: "crsr_test" });
+    expect(result).toEqual(FALLBACK_MODELS);
+  });
+
+  it("returns mapped SDK result on success", async () => {
+    vi.doMock("@cursor/sdk", () => ({
+      Cursor: {
+        models: {
+          list: vi.fn(async () => [
+            { id: "composer-2", displayName: "Composer 2", provider: "Cursor" },
+            { id: "claude-4.7-opus", displayName: "Claude 4.7 Opus", provider: "Anthropic" },
+          ]),
+        },
+      },
+      Agent: { create: vi.fn() },
+    }));
+    const { listModels } = await import(MODULE);
+    const result = await listModels({ apiKey: "crsr_test" });
+    expect(result.map((m: { id: string }) => m.id)).toEqual(["composer-2", "claude-4.7-opus"]);
+    expect(result[0].displayName).toBe("Composer 2");
+    expect(result[0].provider).toBe("Cursor");
+  });
+
+  it("preserves curated pricing when SDK item lacks it", async () => {
+    vi.doMock("@cursor/sdk", () => ({
+      Cursor: {
+        models: {
+          list: vi.fn(async () => [
+            { id: "composer-2", displayName: "Composer 2", provider: "Cursor" },
+          ]),
+        },
+      },
+      Agent: { create: vi.fn() },
+    }));
+    const { listModels } = await import(MODULE);
+    const result = await listModels({ apiKey: "crsr_test" });
+    expect(result[0].pricing).toEqual({ inputPerM: 0.5, outputPerM: 2.5 });
+  });
+});
