@@ -8,30 +8,6 @@ import type {
   TurnResult,
 } from "@flow-build/core";
 
-type CursorChatEvent =
-  | {
-      type: "text";
-      text: string;
-    }
-  | {
-      type: "done";
-      status: string;
-    }
-  | {
-      type: "error";
-      error: string;
-    };
-
-type CursorChatResult =
-  | {
-      ok: true;
-      status: string;
-    }
-  | {
-      ok: false;
-      error: string;
-    };
-
 type FlowbuilderNode =
   | {
       id: string;
@@ -118,9 +94,6 @@ declare global {
   interface Window {
     electron: ElectronAPI;
     api: {
-      cursorChat: {
-        send(prompt: string, onEvent: (event: CursorChatEvent) => void): Promise<CursorChatResult>;
-      };
       flowbuilder: {
         listSessions(): Promise<FlowbuilderListSessionsResult>;
         readSession(sessionId: string): Promise<FlowbuilderReadSessionResult>;

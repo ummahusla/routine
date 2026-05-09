@@ -11,8 +11,8 @@ import { FlowCanvas } from "./components/FlowCanvas";
 import { FlowLegend } from "./components/FlowLegend";
 import { NodeInspector } from "./components/NodeInspector";
 import { PromptBox } from "./components/PromptBox";
+import { useSession } from "./hooks/useSession";
 import type {
-  ChatMessage,
   Flow,
   FlowEdge,
   FlowNode,
@@ -99,11 +99,14 @@ export function App() {
   const [running, setRunning] = useState(false);
   const [runState, setRunState] = useState<RunState>({});
   const [refineVal, setRefineVal] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatHeight, setChatHeight] = useState(180);
   const [reloadKey, setReloadKey] = useState(0);
   const stopRef = useRef(false);
+
+  const { turns, send, cancel } = useSession(selectedSessionId ?? undefined);
+  const lastTurn = turns[turns.length - 1];
+  const isRunning = lastTurn?.status === "running";
 
   const readOnlySession = Boolean(selectedSessionId);
 
@@ -173,13 +176,6 @@ export function App() {
         }
         setManifest(result.manifest);
         setFlow(flowbuilderStateToFlow(result.manifest, result.state));
-        setMessages([
-          { role: "user", text: `Open flowbuilder session: ${result.manifest.name}` },
-          {
-            role: "ai",
-            text: `${result.manifest.description || "Loaded flowbuilder session from disk."} This graph is read-only in the UI, but you can still chat about it here.`,
-          },
-        ]);
       })
       .catch((readError: unknown) => {
         if (cancelled) return;
@@ -214,7 +210,6 @@ export function App() {
     setBuilding(false);
     setRunning(false);
     setRunState({});
-    setMessages([]);
     setFocusId(null);
     setError(null);
   }
@@ -231,32 +226,27 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  function handleSubmit(text: string): void {
+  async function handleSubmit(text: string): Promise<void> {
     const tplId = matchTemplate(text);
     const tpl = FLOW_TEMPLATES[tplId];
-    setMessages((current) => [...current, { role: "user", text }]);
-    setSelectedSessionId(null);
     setLocalFlowId(tplId);
     setManifest(null);
     setBuilding(true);
     setRunState({});
     setFlow(null);
 
+    try {
+      const { sessionId } = await window.api.session.create({ title: text.slice(0, 80) });
+      setSelectedSessionId(sessionId);
+      void window.api.session.send(sessionId, text);
+      void loadSessions(sessionId);
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "Failed to create session");
+    }
+
     window.setTimeout(() => {
       setFlow(cloneFlow(tpl));
       setBuilding(false);
-      setMessages((current) => [
-        ...current,
-        {
-          role: "ai",
-          text: tpl.summary,
-          steps: [
-            `Identified ${tpl.nodes.length} steps and ${tpl.edges.length} connections`,
-            `Mapped to ${new Set(tpl.nodes.map((node) => node.type)).size} node types in your workspace`,
-            `Connectors are configured · ready to execute`,
-          ],
-        },
-      ]);
     }, 900);
   }
 
@@ -466,110 +456,26 @@ export function App() {
     );
   }
 
-  function buildCursorChatPrompt(userPrompt: string): string {
-    const flowContext = flow
-      ? {
-          title: flow.title,
-          summary: flow.summary,
-          source: readOnlySession ? "flowbuilder session on disk (read-only)" : "local editable chat flow",
-          nodes: flow.nodes.map(({ id, type, label, sub, col, row, prompt }) => ({
-            id,
-            type,
-            label,
-            sub,
-            col,
-            row,
-            ...(prompt ? { prompt } : {}),
-          })),
-          edges: flow.edges,
-        }
-      : null;
-    const recentMessages = messages.slice(-6).map(({ role, text }) => ({ role, text }));
-
-    return `You are FlowBuild's flow design copilot inside an Electron app.
-
-The user is chatting about the current visual automation flow. Help them think through changes to the flow.
-
-Important:
-- If the current source is read-only, do not claim the UI can save graph edits; describe what the agent or future writer would change.
-- If the current source is local editable chat flow, describe intended UI changes naturally.
-- Do not edit files, do not run commands, and do not return JSON yet.
-
-Current flow snapshot:
-${JSON.stringify(flowContext, null, 2)}
-
-Recent chat:
-${JSON.stringify(recentMessages, null, 2)}
-
-User message:
-${userPrompt}`;
-  }
-
-  function runCursorChat(prompt: string): void {
-    const id = `cursor-${Date.now().toString(36)}`;
-    const agentPrompt = buildCursorChatPrompt(prompt);
-    setMessages((current) => [...current, { id, role: "ai", text: "", streaming: true }]);
-
-    void window.api.cursorChat
-      .send(agentPrompt, (event) => {
-        setMessages((current) =>
-          current.map((message) => {
-            if (message.id !== id || message.role !== "ai") return message;
-            if (event.type === "text") return { ...message, text: message.text + event.text };
-            if (event.type === "done") return { ...message, streaming: false };
-            return { ...message, text: `Cursor SDK error: ${event.error}`, streaming: false };
-          }),
-        );
-      })
-      .then((result) => {
-        setMessages((current) =>
-          current.map((message) => {
-            if (message.id !== id || message.role !== "ai") return message;
-            if (result.ok) {
-              return {
-                ...message,
-                text: message.text || `Cursor run finished with status: ${result.status}`,
-                streaming: false,
-              };
-            }
-            return { ...message, text: `Cursor SDK error: ${result.error}`, streaming: false };
-          }),
-        );
-      })
-      .catch((chatError: unknown) => {
-        const message = chatError instanceof Error ? chatError.message : "Unknown Cursor SDK error";
-        setMessages((current) =>
-          current.map((item) =>
-            item.id === id && item.role === "ai" ? { ...item, text: `Cursor SDK error: ${message}`, streaming: false } : item,
-          ),
-        );
-      });
-  }
-
-  function handleRefine(): void {
+  async function handleRefine(): Promise<void> {
     const value = refineVal.trim();
     if (!value) return;
 
     const lower = value.toLowerCase();
-    setMessages((current) => [...current, { role: "user", text: value }]);
     setRefineVal("");
 
     if (!readOnlySession) {
       if (/\b(run|execute|go|start|kick)\b/.test(lower) && !/stop/.test(lower)) {
-        setMessages((current) => [...current, { role: "ai", text: "Executing now — watch the canvas." }]);
         window.setTimeout(() => void handleRun(), 250);
         return;
       }
 
       if (/\b(stop|cancel|halt|abort)\b/.test(lower)) {
         handleStop();
-        setMessages((current) => [...current, { role: "ai", text: "Stopped. Nothing was rolled back." }]);
         return;
       }
 
       if (/\b(reset|clear)\b/.test(lower)) {
         handleReset();
-        setMessages((current) => [...current, { role: "ai", text: "Cleared the run state." }]);
         return;
       }
 
@@ -580,15 +486,13 @@ ${userPrompt}`;
         const kind = addMatch[1] as keyof typeof SMART_ADD_ITEMS;
         const spec = SMART_ADD_ITEMS[kind];
         handleAddNode(spec);
-        setMessages((current) => [
-          ...current,
-          { role: "ai", text: `Added a ${spec.label} step at the end. Drag it where you want it.` },
-        ]);
         return;
       }
     }
 
-    runCursorChat(value);
+    if (selectedSessionId) {
+      await send(value);
+    }
   }
 
   return (
@@ -608,7 +512,7 @@ ${userPrompt}`;
       <main className="main">
         <TopBar flow={flow} onHome={handleNew} onTidy={handleTidy} />
 
-        {!selectedSessionId && !flow && !building && <EmptyState onSubmit={handleSubmit} />}
+        {!selectedSessionId && !flow && !building && <EmptyState onSubmit={(text) => void handleSubmit(text)} />}
 
         {selectedSessionId && loadingSessions && (
           <SessionPanel title="Loading sessions" body="Reading flowbuilder sessions from disk." detail={baseDir} />
@@ -674,12 +578,14 @@ ${userPrompt}`;
             </div>
 
             <div className="cf-bottom">
-              <ChatThread messages={messages} height={chatHeight} onResize={setChatHeight} />
+              <ChatThread turns={turns} height={chatHeight} onResize={setChatHeight} />
               <div className="cf-refine">
                 <PromptBox
                   value={refineVal}
                   onChange={setRefineVal}
-                  onSubmit={handleRefine}
+                  onSubmit={() => void handleRefine()}
+                  isRunning={isRunning}
+                  onStop={() => void cancel()}
                   placeholder={
                     readOnlySession
                       ? "Chat about this read-only session..."

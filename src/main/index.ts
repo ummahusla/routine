@@ -114,6 +114,85 @@ app.whenReady().then(() => {
     deleteSession: (opts) => deleteSession(opts),
   });
 
+  ipcMain.handle("flowbuilder:list-sessions", async () => {
+    const baseDir = getBaseDir();
+    const sessionsDir = join(baseDir, "sessions");
+    if (!existsSync(sessionsDir)) return { ok: true, baseDir, sessions: [] };
+    try {
+      const { readdirSync } = await import("fs");
+      const { ManifestSchema, StateSchema, validateRefIntegrity } = await import(
+        "@flow-build/flowbuilder"
+      );
+      const sessions = readdirSync(sessionsDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+          const dir = join(sessionsDir, entry.name);
+          const manifestPath = join(dir, "manifest.json");
+          const statePath = join(dir, "state.json");
+          if (!existsSync(manifestPath) || !existsSync(statePath)) return null;
+          try {
+            const manifest = ManifestSchema.parse(
+              JSON.parse(readFileSync(manifestPath, "utf8")),
+            );
+            const state = StateSchema.parse(JSON.parse(readFileSync(statePath, "utf8")));
+            validateRefIntegrity(state);
+            return {
+              id: manifest.id,
+              name: manifest.name,
+              description: manifest.description,
+              createdAt: manifest.createdAt,
+              updatedAt: manifest.updatedAt,
+              nodeCount: state.nodes.length,
+            };
+          } catch {
+            return null;
+          }
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      return { ok: true, baseDir, sessions };
+    } catch (error) {
+      return {
+        ok: false,
+        baseDir,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle(
+    "flowbuilder:read-session",
+    async (_e, { sessionId }: { sessionId: string }) => {
+      const baseDir = getBaseDir();
+      try {
+        const { ManifestSchema, StateSchema, validateRefIntegrity } = await import(
+          "@flow-build/flowbuilder"
+        );
+        const dir = join(baseDir, "sessions", sessionId);
+        const manifest = ManifestSchema.parse(
+          JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")),
+        );
+        if (manifest.id !== sessionId) {
+          throw new Error(
+            `manifest id ${manifest.id} does not match directory ${sessionId}`,
+          );
+        }
+        const state = StateSchema.parse(
+          JSON.parse(readFileSync(join(dir, "state.json"), "utf8")),
+        );
+        validateRefIntegrity(state);
+        return { ok: true, baseDir, manifest, state };
+      } catch (error) {
+        return {
+          ok: false,
+          baseDir,
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+  );
+
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

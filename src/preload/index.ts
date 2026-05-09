@@ -22,6 +22,14 @@ function unwrap<T>(r: IpcResult<T>): T {
 }
 
 const api = {
+  flowbuilder: {
+    async listSessions() {
+      return ipcRenderer.invoke("flowbuilder:list-sessions");
+    },
+    async readSession(sessionId: string) {
+      return ipcRenderer.invoke("flowbuilder:read-session", { sessionId });
+    },
+  },
   session: {
     async list(): Promise<SessionMetadata[]> {
       const r = await ipcRenderer.invoke("session:list");

@@ -1,71 +1,31 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatMessage } from "../types";
-
-const VISIBLE_RECENT = 6;
-
-function Message({ message }: { message: ChatMessage }) {
-  if (message.role === "user") {
-    return (
-      <div className="msg msg-user">
-        <div className="msg-bub">{message.text}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="msg msg-ai">
-      <div className="msg-avatar">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
-          <path d="M5 6h6l3 3h6" />
-          <path d="M5 12h14" />
-          <path d="M5 18h6l3-3h6" />
-        </svg>
-      </div>
-      <div className="msg-body">
-        <div className="msg-h">FlowBuild</div>
-        <div className="msg-text">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text || (message.streaming ? "Thinking…" : "")}</ReactMarkdown>
-        </div>
-        {message.steps && (
-          <ul className="msg-steps">
-            {message.steps.map((step) => (
-              <li key={step}>
-                <span className="msg-tick">✓</span>
-                {step}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
+import type { PersistedTurn } from "@flow-build/core";
+import { ToolCallChip } from "./ToolCallChip";
 
 type ChatThreadProps = {
-  messages: ChatMessage[];
+  turns: PersistedTurn[];
   height: number;
   onResize: (height: number) => void;
 };
 
-export function ChatThread({ messages, height, onResize }: ChatThreadProps) {
-  const [showAll, setShowAll] = useState(false);
+export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const visible = showAll ? messages : messages.slice(-VISIBLE_RECENT);
+  const lastTurn = turns[turns.length - 1];
+  const lastTextLen = lastTurn?.assistant.textBlocks.length ?? 0;
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages.length, showAll]);
+  }, [turns.length, lastTextLen]);
 
   function onResizeDown(event: MouseEvent<HTMLDivElement>): void {
     if (event.button !== 0) return;
     event.preventDefault();
     const startY = event.clientY;
     const startH = height;
-
     const onMove = (moveEvent: globalThis.MouseEvent): void => {
       const dy = startY - moveEvent.clientY;
       onResize(Math.max(60, Math.min(560, startH + dy)));
@@ -86,14 +46,31 @@ export function ChatThread({ messages, height, onResize }: ChatThreadProps) {
         <div className="ct-resizer-grip" />
       </div>
       <div className="ct" ref={scrollRef} style={{ height, maxHeight: "none", flex: "0 0 auto" }}>
-        {messages.length > visible.length && !showAll && (
-          <button className="ct-more" onClick={() => setShowAll(true)}>
-            ↑ Show {messages.length - visible.length} earlier messages
-          </button>
-        )}
         <div className="ct-list">
-          {visible.map((message, i) => (
-            <Message key={message.id ?? `${message.role}-${message.text}-${i}`} message={message} />
+          {turns.map((turn) => (
+            <div key={turn.turnId} className="msg-pair">
+              <div className="msg msg-user">
+                <div className="msg-bub">{turn.user.text}</div>
+              </div>
+              <div className="msg msg-ai">
+                <div className="msg-body">
+                  <div className="msg-h">FlowBuild</div>
+                  {turn.assistant.toolCalls.map((c) => (
+                    <ToolCallChip key={c.callId} call={c} />
+                  ))}
+                  {turn.assistant.textBlocks.length > 0 && (
+                    <div className="msg-text">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {turn.assistant.textBlocks.join("")}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                  {turn.status !== "completed" && turn.status !== "running" && (
+                    <div className="msg-end">[turn {turn.status}]</div>
+                  )}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       </div>
