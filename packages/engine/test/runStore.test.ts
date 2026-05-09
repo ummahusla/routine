@@ -8,6 +8,7 @@ import {
   writeOutputs,
   writeManifest,
   readRunResult,
+  readEventsFrom,
   listRuns,
 } from "../src/runStore.js";
 import type { RunEvent, RunManifest } from "../src/types.js";
@@ -75,5 +76,65 @@ describe("runStore", () => {
     await initRunDir({ baseDir, sessionId: "s1", runId: "r1", startedAt: "t", state });
     const r = await readRunResult(baseDir, "s1", "r1");
     expect(r.manifest.status).toBe("running");
+  });
+
+  describe("readEventsFrom", () => {
+    it("returns empty + cursor=0 when events.jsonl missing", async () => {
+      const t = await readEventsFrom(baseDir, "s_x", "r_x", 0);
+      expect(t.events).toEqual([]);
+      expect(t.nextCursor).toBe(0);
+    });
+
+    it("reads all events from cursor 0 and advances cursor to file size", async () => {
+      const state = { schemaVersion: 1 as const, nodes: [], edges: [] };
+      await initRunDir({ baseDir, sessionId: "s1", runId: "r1", startedAt: "t", state });
+      const ev1: RunEvent = { type: "run_start", runId: "r1", sessionId: "s1", startedAt: "t" };
+      const ev2: RunEvent = { type: "node_start", runId: "r1", nodeId: "n1", nodeType: "merge", at: "t1" };
+      await appendEvent(baseDir, "s1", "r1", ev1);
+      await appendEvent(baseDir, "s1", "r1", ev2);
+
+      const t = await readEventsFrom(baseDir, "s1", "r1", 0);
+      expect(t.events).toEqual([ev1, ev2]);
+      const path = join(baseDir, "sessions", "s1", "runs", "r1", "events.jsonl");
+      expect(t.nextCursor).toBe(readFileSync(path).length);
+    });
+
+    it("only returns events appended after the cursor", async () => {
+      const state = { schemaVersion: 1 as const, nodes: [], edges: [] };
+      await initRunDir({ baseDir, sessionId: "s1", runId: "r1", startedAt: "t", state });
+      const ev1: RunEvent = { type: "run_start", runId: "r1", sessionId: "s1", startedAt: "t" };
+      await appendEvent(baseDir, "s1", "r1", ev1);
+      const first = await readEventsFrom(baseDir, "s1", "r1", 0);
+      expect(first.events).toEqual([ev1]);
+
+      const ev2: RunEvent = { type: "run_end", runId: "r1", status: "succeeded", at: "t2" };
+      await appendEvent(baseDir, "s1", "r1", ev2);
+      const second = await readEventsFrom(baseDir, "s1", "r1", first.nextCursor);
+      expect(second.events).toEqual([ev2]);
+      expect(second.nextCursor).toBeGreaterThan(first.nextCursor);
+    });
+
+    it("returns empty when cursor at EOF", async () => {
+      const state = { schemaVersion: 1 as const, nodes: [], edges: [] };
+      await initRunDir({ baseDir, sessionId: "s1", runId: "r1", startedAt: "t", state });
+      const ev: RunEvent = { type: "run_start", runId: "r1", sessionId: "s1", startedAt: "t" };
+      await appendEvent(baseDir, "s1", "r1", ev);
+      const first = await readEventsFrom(baseDir, "s1", "r1", 0);
+      const again = await readEventsFrom(baseDir, "s1", "r1", first.nextCursor);
+      expect(again.events).toEqual([]);
+      expect(again.nextCursor).toBe(first.nextCursor);
+    });
+
+    it("clamps cursor to file size when caller passes a stale-too-large value", async () => {
+      const state = { schemaVersion: 1 as const, nodes: [], edges: [] };
+      await initRunDir({ baseDir, sessionId: "s1", runId: "r1", startedAt: "t", state });
+      const ev: RunEvent = { type: "run_start", runId: "r1", sessionId: "s1", startedAt: "t" };
+      await appendEvent(baseDir, "s1", "r1", ev);
+      const path = join(baseDir, "sessions", "s1", "runs", "r1", "events.jsonl");
+      const size = readFileSync(path).length;
+      const t = await readEventsFrom(baseDir, "s1", "r1", size + 9999);
+      expect(t.events).toEqual([]);
+      expect(t.nextCursor).toBe(size);
+    });
   });
 });

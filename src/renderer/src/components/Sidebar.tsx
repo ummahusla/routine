@@ -180,9 +180,9 @@ export function Sidebar({
         <div className="sb-user">
           <div className="sb-avatar">FB</div>
           <div className="sb-meta">
-            <div className="sb-name">Disk base</div>
-            <div className="sb-org" title={baseDir}>
-              {baseDir || "Resolving..."}
+            <div className="sb-name">Local workspace</div>
+            <div className="sb-org" title={baseDir || "Resolving..."}>
+              Saved on this device
             </div>
           </div>
           <button className="sb-ico" title="Settings">

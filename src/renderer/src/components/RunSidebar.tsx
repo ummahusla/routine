@@ -12,10 +12,11 @@ type RunRow = {
 type Props = {
   sessionId: string | null;
   refreshTick: number;
+  selectedRunId: string | null;
   onSelect: (runId: string) => void;
 };
 
-export function RunSidebar({ sessionId, refreshTick, onSelect }: Props) {
+export function RunSidebar({ sessionId, refreshTick, selectedRunId, onSelect }: Props) {
   const [runs, setRuns] = useState<RunRow[]>([]);
 
   useEffect(() => {
@@ -43,7 +44,9 @@ export function RunSidebar({ sessionId, refreshTick, onSelect }: Props) {
       {runs.map((r) => (
         <button
           key={r.runId}
-          className={`rs-row rs-${r.status}`}
+          type="button"
+          className={`rs-row rs-${r.status}${selectedRunId === r.runId ? " rs-selected" : ""}`}
+          aria-current={selectedRunId === r.runId ? true : undefined}
           onClick={() => onSelect(r.runId)}
         >
           <span className="rs-status">{r.status}</span>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { toast } from "sonner";
 import { NODE_W, NODE_H, GAP_X } from "./data/constants";
 import { topoLayers, nodePos } from "./utils/flow";
 import { flowbuilderStateToFlow } from "./utils/flowbuilder";
@@ -12,6 +13,7 @@ import { NodeInspector } from "./components/NodeInspector";
 import { PromptBox } from "./components/PromptBox";
 import { RunSidebar } from "./components/RunSidebar";
 import { useSession } from "./hooks/useSession";
+import type { ModelInfo } from "@flow-build/core";
 import type {
   Flow,
   FlowEdge,
@@ -60,6 +62,17 @@ const SMART_ADD_ITEMS = {
   transform: { type: "transform", icon: "transform", label: "Transform", sub: "map · reduce" },
   code: { type: "transform", icon: "code", label: "Code", sub: "javascript" },
 } satisfies Record<string, PaletteItem>;
+
+/** Prefer the sink output node when multiple exist (matches engine final output). */
+function pickPrimaryOutputNode(nodes: FlowNode[], edges: FlowEdge[]): FlowNode | undefined {
+  const outs = nodes.filter((n) => n.type === "output");
+  if (outs.length === 0) return undefined;
+  if (outs.length === 1) return outs[0];
+  const hasOutgoing = new Set(edges.map(([from]) => from));
+  const sinks = outs.filter((o) => !hasOutgoing.has(o.id));
+  if (sinks.length === 1) return sinks[0];
+  return outs[outs.length - 1];
+}
 
 function SessionPanel({
   title,
@@ -115,12 +128,17 @@ export function App() {
   // animates the canvas after a build; the states below track an actual
   // engine run driven by the Play button via window.api.run.*.
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  /** True from Play until execute/watch settles or run_end; avoids double-starts before activeRunId exists */
+  const [engineRunBusy, setEngineRunBusy] = useState(false);
   const [, setRunStatuses] = useState<Map<string, NodeRunStatus>>(new Map());
   const [nodeStreams, setNodeStreams] = useState<Map<string, string>>(new Map());
   const [nodeErrors, setNodeErrors] = useState<Map<string, string>>(new Map());
   const [runListTick, setRunListTick] = useState(0);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [refineVal, setRefineVal] = useState("");
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [globalDefault, setGlobalDefault] = useState<string>("composer-2");
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
@@ -134,10 +152,11 @@ export function App() {
     typeof window === "undefined" ? false : window.innerWidth < 820,
   );
   const stopRef = useRef(false);
+  const engineRunLockRef = useRef(false);
   const prevSessionIdRef = useRef<string | null>(null);
   const lastFlowbuilderCallRef = useRef<string | null>(null);
 
-  const { turns, loading: loadingTurns, send, cancel, clear } = useSession(selectedSessionId ?? undefined, reloadKey);
+  const { metadata, turns, loading: loadingTurns, send, cancel, clear } = useSession(selectedSessionId ?? undefined, reloadKey);
   const lastTurn = turns[turns.length - 1];
   const isRunning = lastTurn?.status === "running";
 
@@ -154,7 +173,19 @@ export function App() {
   useEffect(() => {
     setChatError(null);
     setConfirmClearOpen(false);
+    setSelectedModel(undefined);
+    setSelectedRunId(null);
   }, [selectedSessionId]);
+
+  const handleRunSidebarSelect = useCallback(
+    (runId: string) => {
+      setSelectedRunId(runId);
+      if (!flow) return;
+      const outputNode = pickPrimaryOutputNode(flow.nodes, flow.edges);
+      if (outputNode) setFocusId(outputNode.id);
+    },
+    [flow],
+  );
 
   useEffect(() => {
     if (!confirmClearOpen) return;
@@ -164,6 +195,36 @@ export function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [confirmClearOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [list, def] = await Promise.all([
+        window.api.models.list(),
+        window.api.app.getDefaultModel(),
+      ]);
+      if (cancelled) return;
+      setModels(list);
+      setGlobalDefault(def);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (metadata?.model) setSelectedModel(metadata.model);
+  }, [metadata?.model]);
+
+  const persistDefault = useCallback((id: string) => {
+    setGlobalDefault(id);
+    void window.api.app.setDefaultModel(id);
+  }, []);
+
+  function handleModelChange(id: string): void {
+    setSelectedModel(id);
+    persistDefault(id);
+  }
 
   const handleToggleSidebar = useCallback((): void => {
     setSidebarCollapsed((prev) => {
@@ -327,7 +388,7 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  async function handleSubmit(text: string): Promise<void> {
+  async function handleSubmit(text: string, model: string): Promise<void> {
     setManifest(null);
     setBuilding(true);
     setRunState({});
@@ -335,11 +396,12 @@ export function App() {
     setFbState(null);
 
     try {
-      const { sessionId } = await window.api.session.create({ title: text.slice(0, 80) });
+      const { sessionId } = await window.api.session.create({ title: text.slice(0, 80), model });
       setSelectedSessionId(sessionId);
       void loadSessions(sessionId);
+      persistDefault(model);
       window.api.session
-        .send(sessionId, text)
+        .send(sessionId, text, model)
         .catch(() => {})
         .finally(() => setReloadKey((current) => current + 1));
     } catch (createError) {
@@ -499,7 +561,7 @@ export function App() {
   // runner is still used by the chat-driven /run command and the build-time
   // animation, since those don't necessarily target the engine yet.
   function handlePlay(): void {
-    if (!selectedSessionId || !fbState) return;
+    if (!selectedSessionId || !fbState || engineRunBusy || activeRunId !== null) return;
     const missing: RequiredInputSpec[] = fbState.nodes
       .filter((n): n is Extract<typeof n, { type: "input" }> => n.type === "input")
       .filter((n) => n.required && (n.value === undefined || n.value === null || n.value === ""))
@@ -515,8 +577,16 @@ export function App() {
     void launchRun();
   }
 
+  function releaseEngineRunLock(): void {
+    engineRunLockRef.current = false;
+    setEngineRunBusy(false);
+  }
+
   async function launchRun(inputs?: Record<string, unknown>): Promise<void> {
     if (!selectedSessionId) return;
+    if (engineRunLockRef.current) return;
+    engineRunLockRef.current = true;
+    setEngineRunBusy(true);
     setRunStatuses(new Map());
     setNodeStreams(new Map());
     setNodeErrors(new Map());
@@ -528,19 +598,22 @@ export function App() {
       return cleared;
     });
 
+    try {
     const r = await window.api.run.execute(
       inputs ? { sessionId: selectedSessionId, inputs } : { sessionId: selectedSessionId },
     );
     if (!r.ok) {
-      setError(r.error);
+      toast.error(r.error);
+      releaseEngineRunLock();
       return;
     }
     setActiveRunId(r.runId);
 
     const watch = await window.api.run.watch({ sessionId: selectedSessionId, runId: r.runId });
     if (!watch.ok) {
-      setError(watch.error);
+      toast.error(watch.error);
       setActiveRunId(null);
+      releaseEngineRunLock();
       return;
     }
     const subscriptionId = watch.subscriptionId;
@@ -572,12 +645,23 @@ export function App() {
         off();
         void window.api.run.unwatch({ subscriptionId });
         setActiveRunId(null);
+        releaseEngineRunLock();
         setRunListTick((t) => t + 1);
+        const shortId = runId.slice(0, 8);
         if (ev.status === "failed") {
-          setError(ev.error ?? "Run failed");
+          toast.error(ev.error ?? "Run failed", { description: shortId });
+        } else if (ev.status === "succeeded") {
+          toast.success("Run finished", { description: `Run ${shortId}` });
+        } else if (ev.status === "cancelled") {
+          toast.message("Run cancelled", { description: shortId });
         }
       }
     });
+    } catch (launchErr: unknown) {
+      toast.error(launchErr instanceof Error ? launchErr.message : "Run failed to start");
+      setActiveRunId(null);
+      releaseEngineRunLock();
+    }
   }
 
   function handleReset(): void {
@@ -756,7 +840,7 @@ export function App() {
     }
 
     if (selectedSessionId) {
-      await send(value);
+      await send(value, selectedModel ?? metadata?.model ?? globalDefault);
     }
   }
 
@@ -782,7 +866,8 @@ export function App() {
           <RunSidebar
             sessionId={selectedSessionId}
             refreshTick={runListTick}
-            onSelect={(runId) => setSelectedRunId(runId)}
+            selectedRunId={selectedRunId}
+            onSelect={handleRunSidebarSelect}
           />
         }
       />
@@ -794,10 +879,17 @@ export function App() {
           onTidy={handleTidy}
           onPlay={() => handlePlay()}
           canRun={canRun}
-          running={activeRunId !== null}
+          running={engineRunBusy || activeRunId !== null}
         />
 
-        {!selectedSessionId && !flow && !building && <EmptyState onSubmit={(text) => void handleSubmit(text)} />}
+        {!selectedSessionId && !flow && !building && (
+          <EmptyState
+            onSubmit={(text, model) => void handleSubmit(text, model)}
+            models={models}
+            initialModel={globalDefault}
+            onPickModel={persistDefault}
+          />
+        )}
 
         {selectedSessionId && loadingSessions && (
           <SessionPanel title="Loading sessions" body="Reading flowbuilder sessions from disk." detail={baseDir} />
@@ -861,7 +953,7 @@ export function App() {
                   />
                 </div>
               )}
-              {flow && flow.nodes.length > 0 && <FlowLegend />}
+              {flow && flow.nodes.length > 0 && <FlowLegend nodes={flow.nodes} />}
             </div>
 
             <div className="cf-bottom">
@@ -882,6 +974,9 @@ export function App() {
                       ? "Chat about this read-only session..."
                       : "Refine the flow... e.g. 'add a Slack approval before sending'"
                   }
+                  model={selectedModel ?? metadata?.model ?? globalDefault}
+                  onModelChange={handleModelChange}
+                  models={models}
                 />
               </div>
             </div>

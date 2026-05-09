@@ -8,7 +8,7 @@ alwaysApply: true
 
 This session edits a flow graph. The graph lives at \`<flowbuilder-base>/sessions/<sessionId>/state.json\`. The session is fixed for the lifetime of this run; you cannot switch sessions.
 
-Use the MCP tools registered as \`flowbuilder_get_state\`, \`flowbuilder_set_state\`, \`flowbuilder_execute_flow\`, and \`flowbuilder_get_run_result\`.
+Use the MCP tools registered as \`flowbuilder_get_state\`, \`flowbuilder_set_state\`, \`flowbuilder_execute_flow\`, \`flowbuilder_get_run_result\`, and \`flowbuilder_tail_run_events\`.
 
 ## Tools
 
@@ -18,15 +18,30 @@ Use the MCP tools registered as \`flowbuilder_get_state\`, \`flowbuilder_set_sta
 
 ### Executing the graph
 - \`flowbuilder_execute_flow({ inputs? })\` — start a run of the saved graph. Returns \`{ runId, sessionId }\` immediately; the run executes asynchronously. \`inputs\` is an optional \`{ [nodeId]: value }\` map that populates input nodes. Any \`input\` node with \`required: true\` and no static \`value\` MUST have an entry in \`inputs\` or the run fails with \`MISSING_REQUIRED_INPUT\`. Inspect the graph via \`flowbuilder_get_state\` to discover which input node ids are required (look at \`required\`, \`label\`, and \`description\` on input nodes).
-- \`flowbuilder_get_run_result({ runId, waitMs? })\` — fetch the result of a previously started run. If \`waitMs\` is provided (max 60000), the call blocks server-side up to that many ms waiting for the run to finish; otherwise it returns the current on-disk state. Returns \`{ status, finalOutput?, outputs, error? }\`.
+- \`flowbuilder_get_run_result({ runId, waitMs? })\` — fetch a snapshot of a previously started run. Works mid-run too. If \`waitMs\` is provided (max 60000), the call blocks server-side up to that many ms waiting for the run to finish before reading; otherwise it returns the current on-disk state. Returns \`{ status, startedAt, endedAt?, nodes, finalOutput?, outputs, error? }\` where \`nodes\` is a derived per-node summary \`{ nodeId, nodeType, status, startedAt?, endedAt?, error?, textChunks? }\`.
+- \`flowbuilder_tail_run_events({ runId, sinceCursor?, waitMs? })\` — stream fine-grained run events for live progress. Pass \`sinceCursor: 0\` on the first call; each response carries a \`nextCursor\` to feed back in. With \`waitMs\` (max 60000) the server blocks until new events arrive, the run ends, or the timeout elapses — long-poll without busy-spinning. Returns \`{ events, nextCursor, status, nodes, done }\` where \`done=true\` means the run is terminal and no more events will appear. Events are typed \`run_start | node_start | node_text | node_end | run_end\`.
 
-**Recommended pattern:**
+**Recommended pattern (await-and-read):**
 \`\`\`
 const { state } = flowbuilder_get_state();
 const required = state.nodes.filter(n => n.type === "input" && n.required);
 // build { [nodeId]: value } for each required input
 const { runId } = flowbuilder_execute_flow({ inputs: { /* nodeId: value, ... */ } });
 const result = flowbuilder_get_run_result({ runId, waitMs: 30000 });
+\`\`\`
+
+**Live-progress pattern (long-poll):**
+\`\`\`
+const { runId } = flowbuilder_execute_flow({ inputs: { ... } });
+let cursor = 0;
+while (true) {
+  const tail = flowbuilder_tail_run_events({ runId, sinceCursor: cursor, waitMs: 15000 });
+  cursor = tail.nextCursor;
+  // tail.events has new node_start/node_end/node_text/run_end events since last call
+  // tail.nodes has the derived per-node status board
+  if (tail.done) break;
+}
+const final = flowbuilder_get_run_result({ runId });
 \`\`\`
 
 You must always pass the **complete** state to \`flowbuilder_set_state\`. Partial patches are not supported. To delete a node, omit it from the new \`nodes\` array; to remove an edge, omit it from \`edges\`.
@@ -81,7 +96,7 @@ At run time, each node emits an \`{ text, data? }\` envelope. \`text\` is the ca
 2. Plan the change. Pick or create rote flows using the rote skill.
 3. Build the next full state object.
 4. Call \`flowbuilder_set_state({ state })\`.
-5. To run: \`flowbuilder_execute_flow()\` then \`flowbuilder_get_run_result({ runId, waitMs: 30000 })\`.
+5. To run: \`flowbuilder_execute_flow()\` then either \`flowbuilder_get_run_result({ runId, waitMs: 30000 })\` to await completion, or loop \`flowbuilder_tail_run_events({ runId, sinceCursor, waitMs: 15000 })\` to stream per-node progress.
 6. If a tool returns \`{ ok: false, error }\`, fix and retry.
 
 Do not run two agents against the same session. The harness assumes one writer per session.

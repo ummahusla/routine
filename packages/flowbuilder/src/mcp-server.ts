@@ -9,7 +9,7 @@ import {
   FlowbuilderMcpStartError,
 } from "./errors.js";
 import type { SessionManager } from "./session.js";
-import type { RunResult } from "@flow-build/engine";
+import { summarizeNodes, type RunEventTail, type RunResult } from "@flow-build/engine";
 
 export type FlowbuilderMcpHandle = {
   url: string;
@@ -23,12 +23,18 @@ export type RunStarter = (
 ) => Promise<string>;
 export type RunResultReader = (sessionId: string, runId: string) => Promise<RunResult>;
 export type RunWaiter = (runId: string, timeoutMs: number) => Promise<void>;
+export type RunEventTailReader = (
+  sessionId: string,
+  runId: string,
+  sinceCursor: number,
+) => Promise<RunEventTail>;
 
 export type StartOptions = {
   session: SessionManager;
   runStarter: RunStarter;
   runResultReader: RunResultReader;
   waitForRunEnd: RunWaiter;
+  tailReader?: RunEventTailReader;
 };
 
 const SetStateInput = z.object({ state: StateSchema });
@@ -46,6 +52,7 @@ function buildMcpServer(
   runStarter: RunStarter,
   runResultReader: RunResultReader,
   waitForRunEnd: RunWaiter,
+  tailReader: RunEventTailReader | undefined,
 ): McpServer {
   const mcp = new McpServer(
     { name: "flowbuilder", version: "0.0.0" },
@@ -122,7 +129,7 @@ function buildMcpServer(
 
   mcp.tool(
     "flowbuilder_get_run_result",
-    "Fetch the result of a previously started run. If waitMs (max 60000) is set, blocks server-side up to that long for run completion; otherwise returns current on-disk state.",
+    "Fetch the snapshot of a previously started run. Works mid-run too — returns whatever has been recorded so far, including a per-node `nodes` summary (status, timings, errors). If waitMs (max 60000) is set, blocks server-side up to that long for run completion before reading; otherwise returns current on-disk state.",
     GetRunResultInput.shape,
     async (raw) => {
       const parsed = GetRunResultInput.safeParse(raw);
@@ -137,6 +144,9 @@ function buildMcpServer(
         return asTextResult({
           ok: true,
           status: result.manifest.status,
+          startedAt: result.manifest.startedAt,
+          endedAt: result.manifest.endedAt,
+          nodes: summarizeNodes(result.events),
           finalOutput: result.events.find((e) => e.type === "run_end")?.finalOutput,
           outputs: result.outputs,
           error: result.manifest.error,
@@ -147,13 +157,74 @@ function buildMcpServer(
     },
   );
 
+  const TailRunEventsInput = z.object({
+    runId: z.string().min(1),
+    sinceCursor: z.number().int().min(0).optional(),
+    waitMs: z.number().int().min(0).max(60_000).optional(),
+  });
+
+  mcp.tool(
+    "flowbuilder_tail_run_events",
+    "Stream fine-grained run events (run_start, node_start, node_text, node_end, run_end) since a byte-offset cursor. Pass `sinceCursor: 0` on first call; on every subsequent call pass the `nextCursor` returned by the previous response. With `waitMs` (max 60000) the server blocks until new events arrive, the run ends, or the timeout elapses — long-poll for live progress without busy-spinning. Returns `{ events, nextCursor, status, nodes, done }` where `done=true` means the run reached a terminal state and no more events will appear.",
+    TailRunEventsInput.shape,
+    async (raw) => {
+      const parsed = TailRunEventsInput.safeParse(raw);
+      if (!parsed.success) {
+        return asTextResult({ ok: false, error: `validation: ${parsed.error.message}` });
+      }
+      if (!tailReader) {
+        return asTextResult({ ok: false, error: "io: tail_run_events not available in this context" });
+      }
+      const { runId } = parsed.data;
+      const cursor = parsed.data.sinceCursor ?? 0;
+      const waitMs = parsed.data.waitMs ?? 0;
+      try {
+        const deadline = waitMs > 0 ? Date.now() + waitMs : 0;
+        // First read — may immediately return new events (or nothing).
+        let tail = await tailReader(session.sessionId, runId, cursor);
+        // Long-poll loop: while no events and still within budget, sleep + retry.
+        // Exit early if the run has reached a terminal state.
+        while (tail.events.length === 0 && deadline > Date.now()) {
+          const result = await runResultReader(session.sessionId, runId);
+          if (result.manifest.status !== "running") {
+            // Run ended; final pass to drain any tail bytes flushed after the
+            // status flip.
+            tail = await tailReader(session.sessionId, runId, tail.nextCursor);
+            return asTextResult(buildTailResponse(tail, result));
+          }
+          const remaining = deadline - Date.now();
+          if (remaining <= 0) break;
+          await new Promise((r) => setTimeout(r, Math.min(200, remaining)));
+          tail = await tailReader(session.sessionId, runId, tail.nextCursor);
+        }
+        const result = await runResultReader(session.sessionId, runId);
+        return asTextResult(buildTailResponse(tail, result));
+      } catch (e) {
+        return asTextResult({ ok: false, error: errorToToolMessage(e) });
+      }
+    },
+  );
+
   return mcp;
+}
+
+function buildTailResponse(tail: RunEventTail, result: RunResult) {
+  const done = result.manifest.status !== "running";
+  return {
+    ok: true,
+    events: tail.events,
+    nextCursor: tail.nextCursor,
+    status: result.manifest.status,
+    nodes: summarizeNodes(result.events),
+    done,
+    ...(result.manifest.error ? { error: result.manifest.error } : {}),
+  };
 }
 
 export async function startFlowbuilderMcpServer(
   opts: StartOptions,
 ): Promise<FlowbuilderMcpHandle> {
-  const { session, runStarter, runResultReader, waitForRunEnd } = opts;
+  const { session, runStarter, runResultReader, waitForRunEnd, tailReader } = opts;
 
   const http: HttpServer = createServer(async (req, res) => {
     if (!req.url || !req.url.startsWith("/mcp")) {
@@ -175,7 +246,7 @@ export async function startFlowbuilderMcpServer(
     // re-initialization across distinct clients. A per-request server
     // is the supported pattern (see SDK's simpleStatelessStreamableHttp
     // example).
-    const mcp = buildMcpServer(session, runStarter, runResultReader, waitForRunEnd);
+    const mcp = buildMcpServer(session, runStarter, runResultReader, waitForRunEnd, tailReader);
     // Omit `sessionIdGenerator` to opt into stateless mode (each request
     // gets a fresh transport+server). Passing it explicitly as `undefined`
     // trips `exactOptionalPropertyTypes`.

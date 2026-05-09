@@ -42,6 +42,14 @@ describe("schemas", () => {
     expect(WatchInputSchema.safeParse({ sessionId: validId, foo: "bar" }).success).toBe(false);
     expect(RenameInputSchema.safeParse({ sessionId: validId, title: "ok", junk: true }).success).toBe(false);
   });
+  it("SendInputSchema accepts optional model and rejects empty/long", () => {
+    const validId = "01HXYZABCDEFGHJKMNPQRSTVWX";
+    expect(SendInputSchema.safeParse({ sessionId: validId, prompt: "hi", model: "composer-2" }).success).toBe(true);
+    expect(SendInputSchema.safeParse({ sessionId: validId, prompt: "hi" }).success).toBe(true);
+    expect(SendInputSchema.safeParse({ sessionId: validId, prompt: "hi", model: "" }).success).toBe(false);
+    const longModel = "x".repeat(81);
+    expect(SendInputSchema.safeParse({ sessionId: validId, prompt: "hi", model: longModel }).success).toBe(false);
+  });
 });
 
 describe("run:* schemas", () => {

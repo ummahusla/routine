@@ -11,13 +11,14 @@ import {
   deleteSession,
   type Session,
 } from "@flow-build/core";
-import { createRun, makeCursorClient, readRunResult } from "@flow-build/engine";
+import { createRun, makeCursorClient, readEventsFrom, readRunResult } from "@flow-build/engine";
 import { StateSchema, validateRefIntegrity } from "@flow-build/flowbuilder";
 import icon from "../../resources/icon.png?asset";
 import { SessionRegistry } from "./registry.js";
 import { registerSessionIpc } from "./ipc/session.js";
 import { RunRegistry } from "./runRegistry.js";
 import { registerRunIpc } from "./ipc/run.js";
+import { registerModelsIpc } from "./ipc/models.js";
 
 function loadLocalEnv(): void {
   // Precedence (Vite-like): shell env > .env.local > .env. We iterate the
@@ -103,6 +104,8 @@ const runResultReader = (sessionId: string, runId: string) =>
   readRunResult(getBaseDir(), sessionId, runId);
 const waitForRunEnd = (runId: string, timeoutMs: number) =>
   runRegistry.waitForRunEnd(runId, timeoutMs);
+const tailReader = (sessionId: string, runId: string, sinceCursor: number) =>
+  readEventsFrom(getBaseDir(), sessionId, runId, sinceCursor);
 
 const registry = new SessionRegistry<Session>({
   openSession: (sessionId) =>
@@ -115,6 +118,7 @@ const registry = new SessionRegistry<Session>({
         runStarter,
         runResultReader,
         waitForRunEnd,
+        tailReader,
       }),
     }),
 });
@@ -171,6 +175,7 @@ app.whenReady().then(() => {
             runStarter,
             runResultReader,
             waitForRunEnd,
+            tailReader,
           }),
       }),
     listSessions: (opts) => listSessions(opts),
@@ -181,6 +186,8 @@ app.whenReady().then(() => {
     baseDir: getBaseDir(),
     registry: runRegistry,
   });
+
+  registerModelsIpc(ipcMain, { apiKey: process.env.CURSOR_API_KEY ?? "" });
 
   ipcMain.handle("flowbuilder:list-sessions", async () => {
     const baseDir = getBaseDir();

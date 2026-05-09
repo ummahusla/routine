@@ -68,7 +68,7 @@ export class Session {
   readonly baseDir: string;
   readonly sessionDir: string;
   readonly workspaceDir: string;
-  private readonly model: string;
+  private model: string;
   private readonly apiKey: string;
   private readonly logger: Logger;
   private readonly retry: Required<RetryOptions>;
@@ -110,6 +110,7 @@ export class Session {
     this.activeTurn = { turnId, abort };
     const startedAt = Date.now();
     const onEvent = opts.onEvent ?? ((): void => {});
+    const effectiveModel = opts.model ?? this.model;
 
     const ts = (): string => new Date().toISOString();
 
@@ -136,7 +137,7 @@ export class Session {
     const host = this.host;
     const ctx: RuntimeContext = {
       cwd: this.workspaceDir,
-      model: this.model,
+      model: effectiveModel,
       runId: turnId,
       signal: abort.signal,
       logger: this.logger,
@@ -283,7 +284,7 @@ export class Session {
             try {
               agent = await Agent.create({
                 apiKey: this.apiKey,
-                model: { id: this.model },
+                model: { id: effectiveModel },
                 local: { cwd: this.workspaceDir, settingSources: ["project", "user"] },
                 ...(mergedMcpServers && Object.keys(mergedMcpServers).length > 0
                   ? { mcpServers: mergedMcpServers }
@@ -339,7 +340,12 @@ export class Session {
             durationMs: Date.now() - startedAt,
           },
         );
-        await this.updateMeta({ turnStatus: "failed_to_start" });
+        const persistOnFail = opts.model && opts.model !== this.model ? opts.model : undefined;
+        await this.updateMeta({
+          turnStatus: "failed_to_start",
+          ...(persistOnFail ? { model: persistOnFail } : {}),
+        });
+        if (persistOnFail) this.model = persistOnFail;
         return { turnId, status: "failed_to_start", finalText: "", error: startError };
       }
 
@@ -351,14 +357,14 @@ export class Session {
           v: 1,
           ts: ts(),
           turnId,
-          model: this.model,
+          model: effectiveModel,
           runId: turnId,
           agentId: live.agent.agentId,
         },
         {
           type: "turn_start",
           turnId,
-          model: this.model,
+          model: effectiveModel,
           agentId: live.agent.agentId,
         },
       );
@@ -567,7 +573,13 @@ export class Session {
         ...(usage ? { usage } : {}),
       },
     );
-    await this.updateMeta({ turnStatus: status, ...(usage ? { usage } : {}) });
+    const persistModel = opts.model && opts.model !== this.model ? opts.model : undefined;
+    await this.updateMeta({
+      turnStatus: status,
+      ...(usage ? { usage } : {}),
+      ...(persistModel ? { model: persistModel } : {}),
+    });
+    if (persistModel) this.model = persistModel;
 
     if (midStreamError && status === "failed") {
       // Mid-stream HarnessError captured above. Persist + emit are done;
@@ -660,6 +672,7 @@ export class Session {
   private async updateMeta(args: {
     turnStatus: TurnStatus;
     usage?: Usage;
+    model?: string;
   }): Promise<void> {
     const meta = readChatMeta(chatPath(this.baseDir, this.sessionId));
     meta.turnCount += 1;
@@ -669,6 +682,7 @@ export class Session {
       meta.totalUsage.inputTokens += args.usage.inputTokens;
       meta.totalUsage.outputTokens += args.usage.outputTokens;
     }
+    if (args.model) meta.model = args.model;
     if (meta.turnCount === 1) {
       // derive title from first user message if title is "untitled"
       if (meta.title === "untitled") {

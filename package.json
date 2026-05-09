@@ -10,7 +10,7 @@
   "packageManager": "pnpm@11.0.9",
   "scripts": {
     "start": "electron-vite preview",
-    "predev": "pnpm -F @flow-build/rote run gen",
+    "predev": "pnpm -F @flow-build/rote run gen && node scripts/bootstrap-rote.mjs",
     "dev": "electron-vite dev",
     "prebuild": "pnpm -F @flow-build/rote run gen",
     "build": "electron-vite build",
@@ -39,6 +39,7 @@
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "sonner": "^2.0.7",
     "zod": "^3.25.76"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { TYPE_COLORS } from "../data/typeColors";
-import type { NodeType } from "../types";
+import type { FlowNode, NodeType } from "../types";
 
 const LEGEND_ITEMS: Array<{ type: NodeType; label: string }> = [
   { type: "trigger", label: "Trigger" },
@@ -11,10 +12,17 @@ const LEGEND_ITEMS: Array<{ type: NodeType; label: string }> = [
   { type: "human", label: "Human" },
 ];
 
-export function FlowLegend() {
+export function FlowLegend({ nodes }: { nodes: FlowNode[] }) {
+  const items = useMemo(() => {
+    const used = new Set(nodes.map((n) => n.type));
+    return LEGEND_ITEMS.filter((item) => used.has(item.type));
+  }, [nodes]);
+
+  if (items.length === 0) return null;
+
   return (
     <div className="lg">
-      {LEGEND_ITEMS.map((item) => (
+      {items.map((item) => (
         <div key={item.type} className="lg-it">
           <span className="lg-sw" style={{ background: TYPE_COLORS[item.type].icon }} />
           <span>{item.label}</span>
