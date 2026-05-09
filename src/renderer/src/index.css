@@ -2518,6 +2518,61 @@ body.is-panning * {
   display: none;
 }
 
+/* Rail mode: normalize all icon containers to 34x34 and center them in the
+   60px-wide rail so logo, action buttons, flow chips, and the user avatar
+   share the same visual footprint. The run-log dots are intentionally left
+   alone. */
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-brand {
+  padding: 14px 13px 12px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-mark {
+  width: 34px;
+  height: 34px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-mark svg {
+  width: 22px;
+  height: 22px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-new,
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-refresh {
+  width: 34px;
+  height: 34px;
+  margin: 4px 13px 8px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-new svg,
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-refresh svg {
+  width: 16px;
+  height: 16px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-section {
+  padding: 10px 13px 4px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-item {
+  padding: 4px 0;
+  justify-content: center;
+  gap: 0;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-chip {
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-foot {
+  padding: 10px 13px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-user {
+  justify-content: center;
+  gap: 0;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+
 /* RunSidebar: collapse each row into a small colored dot in rail mode. */
 .app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-list {
   padding: 6px 0;
