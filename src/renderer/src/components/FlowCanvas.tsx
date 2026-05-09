@@ -51,6 +51,7 @@ export function FlowCanvas({
   flow,
   runState,
   building,
+  focusId,
   onFocus,
   onMoveNode,
   onDeleteNode,
@@ -77,6 +78,13 @@ export function FlowCanvas({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Keep inspected / programmatic focus visible on the canvas and in view.
+  useEffect(() => {
+    if (!focusId || !canvasRef.current) return;
+    const el = canvasRef.current.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(focusId)}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [focusId, flow]);
 
   if (!flow) return null;
   const nodeMap = Object.fromEntries(flow.nodes.map((node) => [node.id, node])) as Record<string, FlowNodeModel>;
@@ -464,7 +472,7 @@ export function FlowCanvas({
             runState={runState}
             dragging={draggingId === node.id}
             connecting={Boolean(connecting && connecting.fromId !== node.id && connecting.hoverId === node.id)}
-            selected={selectedIds.has(node.id)}
+            selected={selectedIds.has(node.id) || focusId === node.id}
             onMouseDown={(event) => handleNodeMouseDown(event, node)}
             onPortDown={onAddEdge ? handlePortMouseDown : undefined}
             onDelete={onDeleteNode ? () => onDeleteNode(node.id) : undefined}

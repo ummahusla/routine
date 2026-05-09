@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ICONS } from "../data/icons";
 import { TYPE_COLORS } from "../data/typeColors";
 import type {
@@ -31,6 +31,98 @@ function formatJson(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function isEnvelopeLike(value: unknown): value is { text?: unknown; data?: unknown } {
+  return typeof value === "object" && value !== null && ("text" in value || "data" in value);
+}
+
+const ETH_ADDR_RE = /(0x[a-fA-F0-9]{40})\b/g;
+
+function truncateEthAddr(addr: string): string {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+/** Inline wallet / contract hex tokens — truncated with full value in title (less horizontal rupture). */
+function lineWithAddresses(line: string): ReactNode {
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  const re = new RegExp(ETH_ADDR_RE.source, "g");
+  let m: RegExpExecArray | null;
+  let k = 0;
+  while ((m = re.exec(line)) !== null) {
+    if (m.index > last) nodes.push(line.slice(last, m.index));
+    const full = m[1];
+    nodes.push(
+      <span key={`${m.index}-${k++}`} className="ins-output-addr" title={full}>
+        {truncateEthAddr(full)}
+      </span>,
+    );
+    last = m.index + full.length;
+  }
+  if (last < line.length) nodes.push(line.slice(last));
+  return nodes.length > 0 ? nodes : line;
+}
+
+function firstNonEmptyLineIndex(lines: string[]): number {
+  const i = lines.findIndex((l) => l.trim() !== "");
+  return i === -1 ? 0 : i;
+}
+
+/** Readable multi-line run text: title row, list-like rows, gaps; mono + tint for long hex ids. */
+function RunOutputTextBody({ text }: { text: string }) {
+  const lines = text.split(/\n/);
+  const leadIdx = firstNonEmptyLineIndex(lines);
+
+  return (
+    <div className="ins-output-prose">
+      {lines.map((line, i) => {
+        if (line.trim() === "") return <div key={i} className="ins-output-linegap" aria-hidden />;
+
+        const isRank = /^\s*#\d+\b/.test(line);
+        const isLead = i === leadIdx && !isRank;
+
+        const cls = ["ins-output-line", isRank ? "ins-output-line-rank" : "", isLead ? "ins-output-line-lead" : ""]
+          .filter(Boolean)
+          .join(" ");
+
+        return (
+          <div key={i} className={cls}>
+            {lineWithAddresses(line)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RunOutputDisplay({ value }: { value: unknown }) {
+  if (value === null || value === undefined) {
+    return <div className="ins-empty">No output recorded for this node.</div>;
+  }
+  if (typeof value === "string") {
+    return <RunOutputTextBody text={value} />;
+  }
+  if (isEnvelopeLike(value)) {
+    const textRaw = value.text;
+    const dataRaw = value.data;
+    const textStr = typeof textRaw === "string" ? textRaw : null;
+    const hasData = dataRaw !== undefined;
+    if (textStr !== null && textStr !== "") {
+      if (!hasData) return <RunOutputTextBody text={textStr} />;
+      return (
+        <>
+          <RunOutputTextBody text={textStr} />
+          <div className="ins-output-extra">
+            <div className="ins-output-extra-label">Structured data</div>
+            <pre className="ins-code ins-output-json">{formatJson(dataRaw)}</pre>
+          </div>
+        </>
+      );
+    }
+    if (hasData) return <pre className="ins-code ins-output-json">{formatJson(dataRaw)}</pre>;
+  }
+  return <pre className="ins-code ins-output-json">{formatJson(value)}</pre>;
 }
 
 function formatParamValue(value: unknown): string {
@@ -160,7 +252,7 @@ export function NodeInspector({
       {outputForNode !== null && (
         <div className="ins-section">
           <div className="ins-h2">Run output</div>
-          <pre className="ins-code ins-output">{JSON.stringify(outputForNode, null, 2)}</pre>
+          <RunOutputDisplay value={outputForNode} />
         </div>
       )}
       <div className="ins-foot">
@@ -237,6 +329,11 @@ function NodeBody({
   }
 
   if (source.type === "output") {
+    const outputEmpty =
+      source.value === undefined ||
+      source.value === null ||
+      (typeof source.value === "string" && source.value.trim() === "");
+    if (outputEmpty) return null;
     return (
       <div className="ins-section">
         <div className="ins-h2">Output value</div>
