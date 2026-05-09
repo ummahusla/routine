@@ -62,15 +62,25 @@ export type FakeSdkConfig = {
   sendBehavior?: { throws?: unknown };
 };
 
-export function installFakeSdk(cfg: FakeSdkConfig) {
+export type InstalledFakeSdk = {
+  create: ReturnType<typeof vi.fn>;
+  lastCreateConfig: () => unknown;
+  lastSendPrompt: () => string | undefined;
+};
+
+export function installFakeSdk(cfg: FakeSdkConfig): InstalledFakeSdk {
   let createCallIdx = 0;
-  const create = vi.fn(async () => {
+  let lastCreateConfig: unknown;
+  let lastSendPrompt: string | undefined;
+  const create = vi.fn(async (config: unknown) => {
+    lastCreateConfig = config;
     const next = cfg.createBehavior[createCallIdx++];
     if (!next) throw new Error("fake SDK ran out of createBehavior entries");
     if (next.throws) throw next.throws;
     if (!next.agent) throw new Error("fake SDK behavior missing agent");
     const fa = next.agent;
-    const send = vi.fn(async () => {
+    const send = vi.fn(async (prompt: string) => {
+      lastSendPrompt = prompt;
       if (cfg.sendBehavior?.throws) throw cfg.sendBehavior.throws;
       return fa.run;
     });
@@ -79,5 +89,9 @@ export function installFakeSdk(cfg: FakeSdkConfig) {
   vi.doMock("@cursor/sdk", () => ({
     Agent: { create },
   }));
-  return { create };
+  return {
+    create,
+    lastCreateConfig: () => lastCreateConfig,
+    lastSendPrompt: () => lastSendPrompt,
+  };
 }
