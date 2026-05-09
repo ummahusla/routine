@@ -122,6 +122,18 @@ importers:
         specifier: workspace:*
         version: link:../rote
 
+  packages/engine:
+    dependencies:
+      '@cursor/sdk':
+        specifier: ^1.0.12
+        version: 1.0.12
+      '@flow-build/flowbuilder':
+        specifier: workspace:*
+        version: link:../flowbuilder
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+
   packages/flowbuilder:
     dependencies:
       '@flow-build/core':
