@@ -91,4 +91,21 @@ describe("listModels", () => {
     expect(result[0].pricing).toEqual({ inputPerM: 0.5, outputPerM: 2.5 });
     expect(result[0].provider).toBe("Cursor");
   });
+
+  it("falls back to provider 'Unknown' for ids not in FALLBACK_MODELS", async () => {
+    vi.doMock("@cursor/sdk", () => ({
+      Cursor: {
+        models: {
+          list: vi.fn(async () => [
+            { id: "future-model-x", displayName: "Future Model X" },
+          ]),
+        },
+      },
+      Agent: { create: vi.fn() },
+    }));
+    const { listModels } = await import(MODULE);
+    const result = await listModels({ apiKey: "crsr_test" });
+    expect(result[0].provider).toBe("Unknown");
+    expect(result[0].pricing).toBeUndefined();
+  });
 });
