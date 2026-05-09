@@ -167,3 +167,52 @@ describe("plugin layer + rote integration smoke", () => {
     expect(fake.lastSendPrompt()!).toContain("rote unavailable");
   });
 });
+
+describe("multi-turn session smoke", () => {
+  it("second turn's send prompt contains verbatim first turn (text + tool args/result)", async () => {
+    const fa1 = makeFakeAgent({
+      streamItems: [
+        {
+          type: "tool_call",
+          call_id: "c1",
+          name: "shell",
+          status: "completed",
+          args: { command: "echo first" },
+          result: "first\n",
+        },
+        { type: "assistant", message: { content: [{ type: "text", text: "first reply" }] } },
+      ],
+      waitResult: { status: "completed" },
+    });
+    const fa2 = makeFakeAgent({
+      streamItems: [
+        { type: "assistant", message: { content: [{ type: "text", text: "second reply" }] } },
+      ],
+      waitResult: { status: "completed" },
+    });
+    const fake = installFakeSdk({ createBehavior: [{ agent: fa1 }, { agent: fa2 }] });
+
+    const baseDir = mkdtempSync(join(tmpdir(), "flow-build-multi-turn-"));
+    try {
+      const { createSession } = await import("./session/index.js");
+      const session = await createSession({ baseDir, title: "multi" });
+      try {
+        await session.send("first prompt");
+        await session.send("second prompt");
+
+        const sent = fake.lastSendPrompt()!;
+        expect(sent).toContain("Conversation so far");
+        expect(sent).toContain("User: first prompt");
+        expect(sent).toContain("[tool_call: shell");
+        expect(sent).toContain('"command":"echo first"');
+        expect(sent).toContain('"first\\n"');
+        expect(sent).toContain("first reply");
+        expect(sent).toContain("User: second prompt");
+      } finally {
+        await session.close();
+      }
+    } finally {
+      rmSync(baseDir, { recursive: true, force: true });
+    }
+  });
+});
