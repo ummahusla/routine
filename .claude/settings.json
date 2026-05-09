@@ -43,7 +43,10 @@
       "Bash(tar -xzf /Users/arina/.claude/projects/-Users-arina-Documents-Dev-flow-build/591e25c3-1aaa-4274-add4-f4b2a35478d0/tool-results/webfetch-1778327222851-78ch64.bin -C /tmp/design-pkg8)",
       "Read(//private/tmp/design-pkg7/flowbuild/**)",
       "Read(//private/tmp/design-pkg8/flowbuild/chats/**)",
-      "Read(//private/tmp/design-pkg8/flowbuild/project/**)"
+      "Read(//private/tmp/design-pkg8/flowbuild/project/**)",
+      "Bash(pnpm typecheck *)",
+      "Bash(tsc --noEmit)",
+      "Bash(npx tsc *)"
     ]
   }
 }
