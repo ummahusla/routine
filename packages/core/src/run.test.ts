@@ -79,3 +79,96 @@ describe("runPrompt happy path", () => {
     ).rejects.toBeInstanceOf(ConfigError);
   });
 });
+
+describe("runPrompt retry behavior", () => {
+  it("retries Agent.create when first attempt throws retryable", async () => {
+    vi.useFakeTimers();
+    const fa = makeFakeAgent({
+      streamItems: [{ type: "assistant", message: { content: [{ type: "text", text: "ok" }] } }],
+    });
+    const fail = Object.assign(new Error("flap"), { name: "NetworkError", isRetryable: true });
+    const fake = installFakeSdk({
+      createBehavior: [{ throws: fail }, { agent: fa }],
+    });
+
+    const { runPrompt } = await import(RUN_PATH);
+    const events: HarnessEvent[] = [];
+    const promise = runPrompt({
+      prompt: "hi",
+      cwd: dir,
+      onEvent: (e) => events.push(e),
+    });
+
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await promise;
+    vi.useRealTimers();
+
+    expect(fake.create).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("completed");
+    expect(result.finalText).toBe("ok");
+  });
+
+  it("throws NetworkError after retry exhaustion", async () => {
+    vi.useFakeTimers();
+    const fail = Object.assign(new Error("flap"), { name: "NetworkError", isRetryable: true });
+    installFakeSdk({
+      createBehavior: [{ throws: fail }, { throws: fail }, { throws: fail }],
+    });
+
+    const { runPrompt } = await import(RUN_PATH);
+    const { NetworkError } = await import("./errors.js");
+    const promise = runPrompt({
+      prompt: "hi",
+      cwd: dir,
+      onEvent: () => {},
+    });
+    promise.catch(() => {});
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+    await expect(promise).rejects.toBeInstanceOf(NetworkError);
+    vi.useRealTimers();
+  });
+
+  it("does NOT retry on mid-stream error (after first event)", async () => {
+    const fail = Object.assign(new Error("net flap"), { name: "NetworkError", isRetryable: true });
+    const fa = makeFakeAgent({
+      streamItems: [
+        { type: "assistant", message: { content: [{ type: "text", text: "partial" }] } },
+      ],
+      streamThrows: { afterIndex: 1, error: fail },
+    });
+    const fake = installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { runPrompt } = await import(RUN_PATH);
+    const { NetworkError } = await import("./errors.js");
+    const events: HarnessEvent[] = [];
+    await expect(
+      runPrompt({
+        prompt: "hi",
+        cwd: dir,
+        onEvent: (e) => events.push(e),
+      }),
+    ).rejects.toBeInstanceOf(NetworkError);
+
+    expect(fake.create).toHaveBeenCalledTimes(1);
+    const partial = events.find((e) => e.type === "text");
+    expect(partial).toBeDefined();
+  });
+
+  it("does not retry non-retryable Agent.create error", async () => {
+    const fail = Object.assign(new Error("bad key"), { name: "AuthenticationError" });
+    const fake = installFakeSdk({ createBehavior: [{ throws: fail }] });
+
+    const { runPrompt } = await import(RUN_PATH);
+    const { AuthError } = await import("./errors.js");
+    await expect(
+      runPrompt({
+        prompt: "hi",
+        cwd: dir,
+        onEvent: () => {},
+      }),
+    ).rejects.toBeInstanceOf(AuthError);
+    expect(fake.create).toHaveBeenCalledTimes(1);
+  });
+});
