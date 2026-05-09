@@ -6,3 +6,6 @@ out
 .vite
 .eslintcache
 *.log*
+*.tsbuildinfo
+.env
+.env.local
