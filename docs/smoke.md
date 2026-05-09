@@ -35,3 +35,19 @@ Expect: stops promptly. Exit 130.
     node packages/cli/dist/main.js run "hi" --cwd "$REPO" --verbose
 
 Expect: `[debug] retrying ...` lines if any retry path triggers.
+
+## Multi-turn session smoke
+
+Goal: verify v1 multi-turn chat persists across restart and replays verbatim.
+
+1. Launch the app: `pnpm dev`.
+2. Sidebar shows one auto-created session. Note its title.
+3. Submit prompt: `list files in this session's workspace dir`.
+4. Confirm: assistant streams text + at least one `[shell]` tool chip with full args/result expandable.
+5. Submit follow-up: `now write a file called ping.txt with content "pong"`.
+6. Confirm: agent acts on the prior context (references the listing or writes via `edit`/`write` tool); the chip shows the write call.
+7. Quit the app (Cmd-Q on macOS).
+8. Relaunch: `pnpm dev`. Sidebar still lists the session; clicking it shows both prior turns rendered identically.
+9. Submit: `summarise what we just did`. Confirm the assistant references the prior file write — proves replay is feeding history into the third turn.
+10. Force-kill the app mid-turn (during a long shell command). Relaunch. Confirm the in-flight turn appears with `[turn interrupted]` marker; submitting a new prompt works.
+11. From a second shell: `node -e 'require("@flow-build/core").loadSession({baseDir: "...", sessionId: "..."})'` — confirm `SessionLockedError` because the app holds the lockfile.
