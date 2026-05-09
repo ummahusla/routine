@@ -20,6 +20,7 @@ import {
   workspaceDir,
   writeChatMeta,
   lockPath,
+  clearEvents,
 } from "./store.js";
 import { reduce } from "./reducer.js";
 import { buildReplay } from "./replay.js";
@@ -503,6 +504,17 @@ export class Session {
         /* ignore */
       }
     }
+  }
+
+  async clearChat(): Promise<void> {
+    if (this.activeTurn) throw new SessionBusyError(this.sessionId);
+    clearEvents({ baseDir: this.baseDir, sessionId: this.sessionId });
+    const meta = readChatMeta(chatPath(this.baseDir, this.sessionId));
+    meta.turnCount = 0;
+    meta.updatedAt = new Date().toISOString();
+    meta.lastStatus = "completed";
+    meta.totalUsage = { inputTokens: 0, outputTokens: 0 };
+    writeChatMeta({ baseDir: this.baseDir, sessionId: this.sessionId, meta });
   }
 
   async turns(): Promise<ReturnType<typeof reduce>> {

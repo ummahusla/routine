@@ -97,6 +97,8 @@ export function App() {
   const [runState, setRunState] = useState<RunState>({});
   const [refineVal, setRefineVal] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [chatHeight, setChatHeight] = useState(180);
   const [reloadKey, setReloadKey] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -110,7 +112,7 @@ export function App() {
   const prevSessionIdRef = useRef<string | null>(null);
   const lastFlowbuilderCallRef = useRef<string | null>(null);
 
-  const { turns, loading: loadingTurns, send, cancel } = useSession(selectedSessionId ?? undefined, reloadKey);
+  const { turns, loading: loadingTurns, send, cancel, clear } = useSession(selectedSessionId ?? undefined, reloadKey);
   const lastTurn = turns[turns.length - 1];
   const isRunning = lastTurn?.status === "running";
 
@@ -123,6 +125,20 @@ export function App() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    setChatError(null);
+    setConfirmClearOpen(false);
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (!confirmClearOpen) return;
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") setConfirmClearOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [confirmClearOpen]);
 
   const handleToggleSidebar = useCallback((): void => {
     setSidebarCollapsed((prev) => {
@@ -440,6 +456,23 @@ export function App() {
     setRunState({});
   }
 
+  async function handleClearChat(): Promise<void> {
+    if (!selectedSessionId || isRunning || loadingTurns) return;
+    try {
+      await clear();
+      setChatError(null);
+      setConfirmClearOpen(false);
+    } catch (clearError) {
+      setChatError(clearError instanceof Error ? clearError.message : "Failed to clear chat");
+      setConfirmClearOpen(false);
+    }
+  }
+
+  function handleRequestClearChat(): void {
+    if (!selectedSessionId || isRunning || loadingTurns) return;
+    setConfirmClearOpen(true);
+  }
+
   function handleMoveNode(id: string, x: number, y: number): void {
     if (readOnlySession) return;
     setFlow((current) =>
@@ -690,10 +723,14 @@ export function App() {
             <div className="cf-bottom">
               <ChatThread turns={turns} loading={loadingTurns} height={chatHeight} onResize={setChatHeight} />
               <div className="cf-refine">
+                {chatError && <div className="cf-refine-error">{chatError}</div>}
                 <PromptBox
                   value={refineVal}
                   onChange={setRefineVal}
                   onSubmit={() => void handleRefine()}
+                  onClear={handleRequestClearChat}
+                  canClear={Boolean(selectedSessionId && turns.length > 0)}
+                  clearDisabled={isRunning || loadingTurns}
                   isRunning={isRunning}
                   onStop={() => void cancel()}
                   placeholder={
@@ -717,6 +754,33 @@ export function App() {
               readOnlySession || running ? undefined : () => void handleReplayFrom(focusId)
             }
           />
+        )}
+
+        {confirmClearOpen && (
+          <div className="modal-backdrop" onClick={() => setConfirmClearOpen(false)}>
+            <div
+              className="modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="clear-chat-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="modal-title" id="clear-chat-title">
+                Clear chat?
+              </div>
+              <div className="modal-body">
+                This removes the current chat transcript only. Your graph, nodes, and edges stay unchanged.
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="modal-btn modal-btn-ghost" onClick={() => setConfirmClearOpen(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="modal-btn modal-btn-danger" onClick={() => void handleClearChat()}>
+                  Clear chat
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>

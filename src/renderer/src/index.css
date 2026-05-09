@@ -147,9 +147,13 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 .pb textarea::-webkit-scrollbar-thumb:hover { background: var(--border-2); }
 .pb-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 10px; gap: 8px; }
 .pb-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.pb-actions { display: inline-flex; align-items: center; gap: 10px; }
 .pb-tool { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--muted); cursor: pointer; font-size: 11.5px; }
 .pb-tool:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
 .pb-tool-label { font-weight: 500; }
+.pb-clear { padding: 4px 2px; background: transparent; border: 0; color: var(--muted); font-size: 11.5px; cursor: pointer; transition: color .12s ease; }
+.pb-clear:hover:not(:disabled) { color: var(--text); }
+.pb-clear:disabled { opacity: 0.45; cursor: not-allowed; }
 .pb-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
 .pb-model { display: inline-flex; align-items: center; gap: 6px; font-family: "Geist Mono", monospace; font-size: 11px; color: var(--muted); padding: 5px 8px; }
 .pb-model-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
@@ -342,6 +346,19 @@ body.is-panning, body.is-panning * { cursor: grabbing !important; }
 /* Refine prompt at bottom */
 .cf-refine { padding: 12px 20px 16px; flex-shrink: 0; }
 .cf-refine .pb { max-width: 920px; margin: 0 auto; }
+.cf-refine-error { color: var(--rose); font-size: 11.5px; max-width: 920px; margin: 0 auto 8px; }
+
+/* Modal */
+.modal-backdrop { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10,10,12,0.62); backdrop-filter: blur(4px); z-index: 20; }
+.modal-card { width: min(420px, calc(100vw - 32px)); padding: 18px; background: var(--surface); border: 1px solid var(--border-2); border-radius: 12px; box-shadow: 0 20px 48px rgba(0,0,0,0.48); }
+.modal-title { font-size: 16px; font-weight: 600; color: var(--text); }
+.modal-body { margin-top: 8px; color: var(--muted); line-height: 1.5; font-size: 12.5px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.modal-btn { padding: 8px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: filter .12s ease, background .12s ease, border-color .12s ease, color .12s ease; }
+.modal-btn-ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.modal-btn-ghost:hover { background: var(--surface-3); border-color: var(--border-2); }
+.modal-btn-danger { background: var(--rose); color: #fff; border: 1px solid var(--rose); }
+.modal-btn-danger:hover { filter: brightness(1.06); }
 
 /* Inspector */
 .ins { position: absolute; top: 60px; right: 0; bottom: 0; width: 320px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; z-index: 4; animation: slideIn .2s ease-out; }

@@ -20,6 +20,8 @@ export const SendInputSchema = z
 
 export const CancelInputSchema = z.object({ sessionId: SessionIdSchema }).strict();
 
+export const ClearInputSchema = z.object({ sessionId: SessionIdSchema }).strict();
+
 export const RenameInputSchema = z
   .object({ sessionId: SessionIdSchema, title: z.string().min(1).max(120) })
   .strict();
@@ -36,6 +38,7 @@ export type CreateInput = z.infer<typeof CreateInputSchema>;
 export type OpenInput = z.infer<typeof OpenInputSchema>;
 export type SendInput = z.infer<typeof SendInputSchema>;
 export type CancelInput = z.infer<typeof CancelInputSchema>;
+export type ClearInput = z.infer<typeof ClearInputSchema>;
 export type RenameInput = z.infer<typeof RenameInputSchema>;
 export type DeleteInput = z.infer<typeof DeleteInputSchema>;
 export type WatchInput = z.infer<typeof WatchInputSchema>;

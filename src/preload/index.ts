@@ -50,6 +50,9 @@ const api = {
     async cancel(sessionId: string): Promise<void> {
       unwrap(await ipcRenderer.invoke("session:cancel", { sessionId }));
     },
+    async clear(sessionId: string): Promise<void> {
+      unwrap(await ipcRenderer.invoke("session:clear", { sessionId }));
+    },
     async rename(sessionId: string, title: string): Promise<void> {
       unwrap(await ipcRenderer.invoke("session:rename", { sessionId, title }));
     },

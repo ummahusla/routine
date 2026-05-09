@@ -104,6 +104,7 @@ declare global {
         open(sessionId: string): Promise<{ metadata: SessionMetadata; turns: PersistedTurn[] }>;
         send(sessionId: string, prompt: string): Promise<TurnResult>;
         cancel(sessionId: string): Promise<void>;
+        clear(sessionId: string): Promise<void>;
         rename(sessionId: string, title: string): Promise<void>;
         delete(sessionId: string): Promise<void>;
         watch(sessionId: string, onEvent: (e: SessionEvent) => void): () => void;

@@ -10,6 +10,7 @@ import {
   OpenInputSchema,
   SendInputSchema,
   CancelInputSchema,
+  ClearInputSchema,
   RenameInputSchema,
   DeleteInputSchema,
   WatchInputSchema,
@@ -92,6 +93,18 @@ export function registerSessionIpc(ipc: IpcMain, deps: IpcDeps): void {
     try {
       const session = await deps.registry.open(parsed.data.sessionId);
       await session.cancel();
+      return { ok: true };
+    } catch (e) {
+      return harnessFail(e);
+    }
+  });
+
+  ipc.handle("session:clear", async (_e: IpcMainInvokeEvent, raw: unknown) => {
+    const parsed = ClearInputSchema.safeParse(raw);
+    if (!parsed.success) return invalid(parsed.error.message);
+    try {
+      const session = await deps.registry.open(parsed.data.sessionId);
+      await session.clearChat();
       return { ok: true };
     } catch (e) {
       return harnessFail(e);

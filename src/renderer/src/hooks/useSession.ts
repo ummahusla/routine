@@ -14,6 +14,27 @@ type Action =
   | { type: "error"; message: string }
   | { type: "reset"; loading: boolean };
 
+type LooseIpcResult =
+  | void
+  | { ok: true }
+  | { ok: false; error?: string; code?: string };
+
+function unwrapCompatIpc(result: LooseIpcResult): void {
+  if (result && typeof result === "object" && "ok" in result && result.ok === false) {
+    const error = new Error(result.error ?? "ipc error");
+    (error as { code?: string }).code = result.code;
+    throw error;
+  }
+}
+
+function normalizeClearError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("No handler registered for 'session:clear'")) {
+    return new Error("Clear chat requires restarting the Electron app once so the new handler is loaded.");
+  }
+  return error instanceof Error ? error : new Error(message);
+}
+
 function applyEvent(turns: PersistedTurn[], ev: SessionEvent): PersistedTurn[] {
   if (ev.type === "user") {
     return [
@@ -102,6 +123,7 @@ export function useSession(
   error?: string;
   send: (prompt: string) => Promise<void>;
   cancel: () => Promise<void>;
+  clear: () => Promise<void>;
 } {
   const [state, dispatch] = useReducer(reducer, { turns: [], loading: !!sessionId });
   const unsubRef = useRef<(() => void) | undefined>(undefined);
@@ -146,5 +168,28 @@ export function useSession(
     await window.api.session.cancel(sessionId);
   }, [sessionId]);
 
-  return { ...state, send, cancel };
+  const clear = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      const clearFn = (window.api.session as { clear?: (id: string) => Promise<void> }).clear;
+      if (typeof clearFn === "function") {
+        await clearFn(sessionId);
+      } else {
+        const invoke = (
+          window.electron as unknown as {
+            ipcRenderer?: { invoke?: (channel: string, payload?: unknown) => Promise<LooseIpcResult> };
+          }
+        )?.ipcRenderer?.invoke;
+        if (typeof invoke !== "function") {
+          throw new Error("Clear chat is unavailable until the app reloads.");
+        }
+        unwrapCompatIpc(await invoke("session:clear", { sessionId }));
+      }
+    } catch (error) {
+      throw normalizeClearError(error);
+    }
+    dispatch({ type: "reset", loading: false });
+  }, [sessionId]);
+
+  return { ...state, send, cancel, clear };
 }
