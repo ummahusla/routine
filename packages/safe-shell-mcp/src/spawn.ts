@@ -46,7 +46,8 @@ export async function runShell(opts: RunShellOptions): Promise<ExecResult> {
     const s = await stat(opts.cwd);
     if (!s.isDirectory()) throw new Error(`cwd is not a directory: ${opts.cwd}`);
   } catch (e) {
-    throw new Error(`cwd does not exist or is not accessible: ${opts.cwd}`);
+    const cause = e instanceof Error ? e.message : String(e);
+    throw new Error(`cwd is not usable: ${opts.cwd}: ${cause}`, { cause: e });
   }
 
   const started = Date.now();
@@ -69,12 +70,13 @@ export async function runShell(opts: RunShellOptions): Promise<ExecResult> {
     let stdoutTrunc = false;
     let stderrTrunc = false;
     let timedOut = false;
+    let closed = false;
 
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGTERM");
       setTimeout(() => {
-        if (!child.killed) child.kill("SIGKILL");
+        if (!closed) child.kill("SIGKILL");
       }, SIGKILL_GRACE_MS).unref();
     }, opts.timeoutMs);
     timer.unref();
@@ -109,6 +111,7 @@ export async function runShell(opts: RunShellOptions): Promise<ExecResult> {
     });
 
     child.on("error", (err) => {
+      closed = true;
       clearTimeout(timer);
       resolve({
         ok: false,
@@ -123,6 +126,7 @@ export async function runShell(opts: RunShellOptions): Promise<ExecResult> {
     });
 
     child.on("close", (code, signal) => {
+      closed = true;
       clearTimeout(timer);
       resolve({
         ok: !timedOut && code === 0,
