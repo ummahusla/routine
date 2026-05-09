@@ -35,7 +35,7 @@ type RunEventLike =
   | { type: "node_start"; nodeId: string }
   | { type: "node_text"; nodeId: string; chunk: string }
   | { type: "node_end"; nodeId: string; status: string; error?: string }
-  | { type: "run_end"; status: string };
+  | { type: "run_end"; status: string; error?: string };
 
 const SMART_ADD_ITEMS = {
   prompt: {
@@ -115,9 +115,7 @@ export function App() {
   const [nodeStreams, setNodeStreams] = useState<Map<string, string>>(new Map());
   const [nodeErrors, setNodeErrors] = useState<Map<string, string>>(new Map());
   const [runListTick, setRunListTick] = useState(0);
-  // selectedRunId is consumed by Task 27 (Inspector Output tab). The setter
-  // is wired now so RunSidebar clicks have somewhere to land.
-  const [, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [refineVal, setRefineVal] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatHeight, setChatHeight] = useState(180);
@@ -495,6 +493,9 @@ export function App() {
         void window.api.run.unwatch({ subscriptionId });
         setActiveRunId(null);
         setRunListTick((t) => t + 1);
+        if (ev.status === "failed") {
+          setError(ev.error ?? "Run failed");
+        }
       }
     });
   }
@@ -795,6 +796,9 @@ export function App() {
             onReplay={
               readOnlySession || running ? undefined : () => void handleReplayFrom(focusId)
             }
+            sessionId={selectedSessionId}
+            activeRunId={activeRunId}
+            selectedRunId={selectedRunId}
           />
         )}
       </main>

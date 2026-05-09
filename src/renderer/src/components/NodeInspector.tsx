@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ICONS } from "../data/icons";
 import { TYPE_COLORS } from "../data/typeColors";
 import type { FlowNode, NodeStatus } from "../types";
@@ -8,9 +9,42 @@ type NodeInspectorProps = {
   readOnly?: boolean;
   onClose: () => void;
   onReplay?: () => void;
+  sessionId?: string | null;
+  activeRunId?: string | null;
+  selectedRunId?: string | null;
 };
 
-export function NodeInspector({ node, status, readOnly, onClose, onReplay }: NodeInspectorProps) {
+export function NodeInspector({
+  node,
+  status,
+  readOnly,
+  onClose,
+  onReplay,
+  sessionId,
+  activeRunId,
+  selectedRunId,
+}: NodeInspectorProps) {
+  const [outputForNode, setOutputForNode] = useState<unknown>(null);
+
+  useEffect(() => {
+    const runId = selectedRunId ?? activeRunId;
+    if (!node || !runId || !sessionId) {
+      setOutputForNode(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const r = (await window.api.run.read({ sessionId, runId })) as
+        | { ok: true; outputs: Record<string, unknown> }
+        | { ok: false; error: string };
+      if (cancelled) return;
+      if (r.ok) setOutputForNode(r.outputs[node.id] ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [node?.id, activeRunId, selectedRunId, sessionId]);
+
   if (!node) return null;
   const color = TYPE_COLORS[node.type] || TYPE_COLORS.transform;
 
@@ -64,6 +98,12 @@ export function NodeInspector({ node, status, readOnly, onClose, onReplay }: Nod
           <li><span>summary</span><span>string</span></li>
         </ul>
       </div>
+      {outputForNode !== null && (
+        <div className="ins-section">
+          <div className="ins-h2">Run output</div>
+          <pre className="ins-code ins-output">{JSON.stringify(outputForNode, null, 2)}</pre>
+        </div>
+      )}
       <div className="ins-foot">
         {readOnly ? (
           <div className="ins-note">This graph is read from disk. The agent owns state changes for this iteration.</div>
