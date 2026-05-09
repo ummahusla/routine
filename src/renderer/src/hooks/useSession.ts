@@ -92,7 +92,10 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export function useSession(sessionId: string | undefined): {
+export function useSession(
+  sessionId: string | undefined,
+  reloadKey: number = 0,
+): {
   metadata?: SessionMetadata;
   turns: PersistedTurn[];
   loading: boolean;
@@ -122,7 +125,7 @@ export function useSession(sessionId: string | undefined): {
       unsubRef.current?.();
       unsubRef.current = undefined;
     };
-  }, [sessionId]);
+  }, [sessionId, reloadKey]);
 
   const send = useCallback(
     async (prompt: string) => {

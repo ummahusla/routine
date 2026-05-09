@@ -101,7 +101,7 @@ export function App() {
   const [reloadKey, setReloadKey] = useState(0);
   const stopRef = useRef(false);
 
-  const { turns, send, cancel } = useSession(selectedSessionId ?? undefined);
+  const { turns, send, cancel } = useSession(selectedSessionId ?? undefined, reloadKey);
   const lastTurn = turns[turns.length - 1];
   const isRunning = lastTurn?.status === "running";
 
@@ -230,8 +230,11 @@ export function App() {
     try {
       const { sessionId } = await window.api.session.create({ title: text.slice(0, 80) });
       setSelectedSessionId(sessionId);
-      void window.api.session.send(sessionId, text);
       void loadSessions(sessionId);
+      window.api.session
+        .send(sessionId, text)
+        .catch(() => {})
+        .finally(() => setReloadKey((current) => current + 1));
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create session");
       setBuilding(false);

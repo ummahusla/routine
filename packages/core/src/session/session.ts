@@ -125,6 +125,7 @@ export class Session {
     let status: TurnStatus = "completed";
     let usage: Usage | undefined;
     let midStreamError: HarnessError | undefined;
+    let waitFailureMessage: string | undefined;
 
     const host = new PluginHost(this.plugins);
     const ctx: RuntimeContext = {
@@ -355,6 +356,8 @@ export class Session {
             if (waitStatus === "cancelled") status = "cancelled";
             else if (waitStatus && waitStatus !== "completed" && waitStatus !== "finished") {
               status = "failed";
+              waitFailureMessage =
+                (wait as { result?: string }).result ?? `agent run ended with status: ${waitStatus}`;
             }
           }
           const u = (wait as { usage?: Usage }).usage;
@@ -375,6 +378,11 @@ export class Session {
         emit(
           { kind: "error", v: 1, ts: ts(), turnId, message },
           { type: "error", turnId, message },
+        );
+      } else if (waitFailureMessage) {
+        emit(
+          { kind: "error", v: 1, ts: ts(), turnId, message: waitFailureMessage },
+          { type: "error", turnId, message: waitFailureMessage },
         );
       }
     } finally {
