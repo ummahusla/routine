@@ -1,3 +1,4 @@
+export { runPrompt } from "./run.js";
 export type {
   Logger,
   RetryOptions,
@@ -6,3 +7,9 @@ export type {
   RunStatus,
   RunResult,
 } from "./types.js";
+export {
+  HarnessError,
+  AuthError,
+  ConfigError,
+  NetworkError,
+} from "./errors.js";
