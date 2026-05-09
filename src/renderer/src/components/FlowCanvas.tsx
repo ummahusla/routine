@@ -43,6 +43,8 @@ type FlowCanvasProps = {
   onDeleteEdge?: (from: string, to: string) => void;
   onAddEdge?: (from: string, to: string) => void;
   onPromptChange?: (id: string, prompt: string) => void;
+  nodeStreams?: Map<string, string>;
+  nodeErrors?: Map<string, string>;
 };
 
 export function FlowCanvas({
@@ -55,6 +57,8 @@ export function FlowCanvas({
   onDeleteEdge,
   onAddEdge,
   onPromptChange,
+  nodeStreams,
+  nodeErrors,
 }: FlowCanvasProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [hoverEdge, setHoverEdge] = useState<string | null>(null);
@@ -465,6 +469,8 @@ export function FlowCanvas({
             onPortDown={onAddEdge ? handlePortMouseDown : undefined}
             onDelete={onDeleteNode ? () => onDeleteNode(node.id) : undefined}
             onPromptChange={onPromptChange}
+            streamingText={nodeStreams?.get(node.id)}
+            errorMessage={nodeErrors?.get(node.id)}
           />
         ))}
 

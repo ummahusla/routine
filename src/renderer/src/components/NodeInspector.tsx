@@ -14,6 +14,9 @@ type NodeInspectorProps = {
   readOnly?: boolean;
   onClose: () => void;
   onReplay?: () => void;
+  sessionId?: string | null;
+  activeRunId?: string | null;
+  selectedRunId?: string | null;
 };
 
 type FlowInfoState =
@@ -38,8 +41,18 @@ function formatParamValue(value: unknown): string {
   return formatJson(value);
 }
 
-export function NodeInspector({ node, status, readOnly, onClose, onReplay }: NodeInspectorProps) {
+export function NodeInspector({
+  node,
+  status,
+  readOnly,
+  onClose,
+  onReplay,
+  sessionId,
+  activeRunId,
+  selectedRunId,
+}: NodeInspectorProps) {
   const [flowInfo, setFlowInfo] = useState<FlowInfoState>({ kind: "idle" });
+  const [outputForNode, setOutputForNode] = useState<unknown>(null);
   const source = node?.source;
   const flowRef = source?.type === "flow" ? source.flow : null;
 
@@ -76,6 +89,25 @@ export function NodeInspector({ node, status, readOnly, onClose, onReplay }: Nod
       cancelled = true;
     };
   }, [flowRef]);
+
+  useEffect(() => {
+    const runId = selectedRunId ?? activeRunId;
+    if (!node || !runId || !sessionId) {
+      setOutputForNode(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const r = (await window.api.run.read({ sessionId, runId })) as
+        | { ok: true; outputs: Record<string, unknown> }
+        | { ok: false; error: string };
+      if (cancelled) return;
+      if (r.ok) setOutputForNode(r.outputs[node.id] ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [node?.id, activeRunId, selectedRunId, sessionId]);
 
   if (!node) return null;
   const color = TYPE_COLORS[node.type] || TYPE_COLORS.transform;
@@ -125,6 +157,12 @@ export function NodeInspector({ node, status, readOnly, onClose, onReplay }: Nod
 
       <NodeBody source={source} flowInfo={flowInfo} />
 
+      {outputForNode !== null && (
+        <div className="ins-section">
+          <div className="ins-h2">Run output</div>
+          <pre className="ins-code ins-output">{JSON.stringify(outputForNode, null, 2)}</pre>
+        </div>
+      )}
       <div className="ins-foot">
         {readOnly ? (
           <div className="ins-note">
@@ -183,7 +221,8 @@ function NodeBody({
     );
   }
 
-  // Flow node — drive UI from the resolved manifest.
+  if (source.type !== "flow") return null;
+
   const params = source.params ?? {};
   return (
     <>

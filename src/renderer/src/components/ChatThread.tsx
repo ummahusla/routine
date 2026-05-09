@@ -81,7 +81,7 @@ export function ChatThread({ turns, height, loading = false, onResize }: ChatThr
               </div>
               <div className="msg msg-ai">
                 <div className="msg-body">
-                  <div className="msg-h">FlowBuild</div>
+                  <div className="msg-h">Routine</div>
                   <ToolCallsSection calls={turn.assistant.toolCalls} />
                   {turn.assistant.textBlocks.length > 0 && (
                     <div className="msg-text">

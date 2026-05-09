@@ -17,7 +17,10 @@
     "jsx": "react-jsx",
     "types": ["node", "vite/client"],
     "paths": {
-      "@flow-build/flowbuilder": ["./packages/flowbuilder/src/schema.ts"],
+      "@flow-build/core": ["./packages/core/src/index.ts"],
+      "@flow-build/engine": ["./packages/engine/src/index.ts"],
+      "@flow-build/flowbuilder": ["./packages/flowbuilder/src/index.ts"],
+      "@flow-build/rote": ["./packages/rote/src/index.ts"],
       "@renderer/*": ["./src/renderer/src/*"]
     }
   },

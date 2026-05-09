@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installFakeSdk, makeFakeAgent } from "../test/fakeSdk.js";
 import { Session } from "./session.js";
-import { initSession, eventsPath } from "./store.js";
+import { chatPath, initSession, eventsPath, readChatMeta } from "./store.js";
 import { SessionBusyError } from "./errors.js";
 
 const SESSION_PATH = "./session.js";
@@ -112,6 +112,36 @@ describe("Session.send", () => {
     const last = lines[lines.length - 1];
     expect(last.kind).toBe("turn_end");
     expect(last.status).toBe("failed_to_start");
+  });
+
+  it("clearChat removes chat events and usage without touching flowbuilder state", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    const statePath = join(dir, "sessions", "S1", "state.json");
+    const stateJson = '{ "nodes": ["keep-me"], "edges": [] }\n';
+    writeFileSync(statePath, stateJson);
+    const fa = makeFakeAgent({
+      streamItems: [
+        { type: "assistant", message: { content: [{ type: "text", text: "hello" }] } },
+      ],
+      waitResult: { status: "completed", usage: { inputTokens: 7, outputTokens: 3 } },
+    });
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({ baseDir: dir, sessionId: "S1", apiKey: "crsr_test" });
+    await session.send("hi");
+
+    expect(readFileSync(eventsPath(dir, "S1"), "utf8")).not.toBe("");
+    await session.clearChat();
+
+    expect(await session.turns()).toEqual([]);
+    expect(readFileSync(eventsPath(dir, "S1"), "utf8")).toBe("");
+    expect(readFileSync(statePath, "utf8")).toBe(stateJson);
+    expect(readChatMeta(chatPath(dir, "S1"))).toMatchObject({
+      turnCount: 0,
+      lastStatus: "completed",
+      totalUsage: { inputTokens: 0, outputTokens: 0 },
+    });
   });
 
   it("includes verbatim replay of prior completed turn in second send's prompt", async () => {

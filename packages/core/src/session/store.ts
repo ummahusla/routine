@@ -73,6 +73,12 @@ export function appendEvent(args: AppendArgs): void {
   appendFileSync(path, JSON.stringify(args.event) + "\n");
 }
 
+export function clearEvents(args: { baseDir: string; sessionId: string }): void {
+  const path = eventsPath(args.baseDir, args.sessionId);
+  if (!existsSync(path)) throw new SessionMissingError(args.sessionId);
+  writeFileSync(path, "");
+}
+
 export function readEvents(args: { baseDir: string; sessionId: string }): LineEnvelope[] {
   const path = eventsPath(args.baseDir, args.sessionId);
   if (!existsSync(path)) throw new SessionMissingError(args.sessionId);

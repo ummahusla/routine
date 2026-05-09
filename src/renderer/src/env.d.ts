@@ -33,6 +33,15 @@ type FlowbuilderNode =
   | {
       id: string;
       type: "merge";
+    }
+  | {
+      id: string;
+      type: "llm";
+      prompt: string;
+      model?: string;
+      maxTokens?: number;
+      temperature?: number;
+      systemPrompt?: string;
     };
 
 type FlowbuilderEdge = {
@@ -117,6 +126,19 @@ type FlowInfoResultLocal =
       error: string;
     };
 
+type RunIpcOk<T> = { ok: true } & T;
+type RunIpcErr = { ok: false; code: string; error: string };
+
+type RunListEntry = {
+  runId: string;
+  sessionId: string;
+  startedAt: string;
+  endedAt?: string;
+  status: string;
+  error?: string;
+};
+
+
 declare global {
   interface Window {
     electron: ElectronAPI;
@@ -132,9 +154,21 @@ declare global {
         open(sessionId: string): Promise<{ metadata: SessionMetadata; turns: PersistedTurn[] }>;
         send(sessionId: string, prompt: string): Promise<TurnResult>;
         cancel(sessionId: string): Promise<void>;
+        clear(sessionId: string): Promise<void>;
         rename(sessionId: string, title: string): Promise<void>;
         delete(sessionId: string): Promise<void>;
         watch(sessionId: string, onEvent: (e: SessionEvent) => void): () => void;
+      };
+      run: {
+        execute(input: { sessionId: string }): Promise<RunIpcOk<{ runId: string }> | RunIpcErr>;
+        cancel(input: { sessionId: string; runId: string }): Promise<RunIpcOk<{}> | RunIpcErr>;
+        list(input: { sessionId: string }): Promise<RunIpcOk<{ runs: RunListEntry[] }> | RunIpcErr>;
+        read(input: { sessionId: string; runId: string }): Promise<unknown>;
+        watch(
+          input: { sessionId: string; runId: string },
+        ): Promise<RunIpcOk<{ subscriptionId: string }> | RunIpcErr>;
+        unwatch(input: { subscriptionId: string }): Promise<RunIpcOk<{}> | RunIpcErr>;
+        onEvent(cb: (msg: { runId: string; event: unknown }) => void): () => void;
       };
     };
   }

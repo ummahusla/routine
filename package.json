@@ -32,6 +32,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@flow-build/core": "workspace:*",
+    "@flow-build/engine": "workspace:*",
     "@flow-build/flowbuilder": "workspace:*",
     "@flow-build/rote": "workspace:*",
     "react": "^18.3.1",

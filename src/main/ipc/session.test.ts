@@ -47,6 +47,26 @@ describe("registerSessionIpc", () => {
     expect(out).toMatchObject({ ok: false, code: "INVALID" });
   });
 
+  it("session:clear opens the session and clears chat", async () => {
+    const ipc = makeIpcMain();
+    const clearChat = vi.fn(async () => {});
+    const open = vi.fn(async () => ({ clearChat }));
+    registerSessionIpc(ipc as never, {
+      baseDir,
+      registry: { open } as never,
+      createSession: vi.fn() as never,
+      listSessions: vi.fn() as never,
+      deleteSession: vi.fn() as never,
+    });
+    const sessionId = "01HXYZABCDEFGHJKMNPQRSTVWX";
+
+    const out = await ipc.invoke("session:clear", {}, { sessionId });
+
+    expect(out).toEqual({ ok: true });
+    expect(open).toHaveBeenCalledWith(sessionId);
+    expect(clearChat).toHaveBeenCalled();
+  });
+
   it("session:unwatch checks WebContents ownership", async () => {
     const ipc = makeIpcMain();
     const unsubscribe = vi.fn();

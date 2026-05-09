@@ -27,7 +27,7 @@ export function EmptyState({ onSubmit }: EmptyStateProps) {
       </div>
       <h1 className="empty-h">What flow would you like to build?</h1>
       <p className="empty-sub">
-        Describe the automation in plain English. FlowBuild lays out the nodes, wires them up, and runs them on your stack.
+        Describe the automation in plain English. Routine lays out the nodes, wires them up, and runs them on your stack.
       </p>
 
       <PromptBox value={val} onChange={setVal} onSubmit={() => send()} large />

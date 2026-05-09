@@ -5,6 +5,12 @@ import {
   SendInputSchema,
   WatchInputSchema,
   RenameInputSchema,
+  RunExecuteInputSchema,
+  RunCancelInputSchema,
+  RunListInputSchema,
+  RunReadInputSchema,
+  RunWatchInputSchema,
+  RunUnwatchInputSchema,
 } from "./schemas.js";
 
 describe("schemas", () => {
@@ -35,5 +41,19 @@ describe("schemas", () => {
     expect(CreateInputSchema.safeParse({ wat: 1 }).success).toBe(false);
     expect(WatchInputSchema.safeParse({ sessionId: validId, foo: "bar" }).success).toBe(false);
     expect(RenameInputSchema.safeParse({ sessionId: validId, title: "ok", junk: true }).success).toBe(false);
+  });
+});
+
+describe("run:* schemas", () => {
+  it("RunExecuteInputSchema accepts { sessionId } and rejects unknown keys", () => {
+    expect(() => RunExecuteInputSchema.parse({ sessionId: "01ARZ3NDEKTSV4RRFFQ69G5FAV" })).not.toThrow();
+    expect(() => RunExecuteInputSchema.parse({ sessionId: "01ARZ3NDEKTSV4RRFFQ69G5FAV", junk: 1 })).toThrow();
+  });
+  it("RunCancelInputSchema requires sessionId + runId", () => {
+    expect(() => RunCancelInputSchema.parse({ sessionId: "01ARZ3NDEKTSV4RRFFQ69G5FAV", runId: "r1" })).not.toThrow();
+    expect(() => RunCancelInputSchema.parse({ sessionId: "01ARZ3NDEKTSV4RRFFQ69G5FAV" })).toThrow();
+  });
+  it("RunWatchInputSchema rejects extra keys", () => {
+    expect(() => RunWatchInputSchema.parse({ sessionId: "01ARZ3NDEKTSV4RRFFQ69G5FAV", runId: "r1", x: 1 })).toThrow();
   });
 });

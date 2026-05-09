@@ -21,3 +21,19 @@ describe("rules", () => {
     expect(body).toMatch(/alwaysApply:\s*true/);
   });
 });
+
+describe("rules.ts new sections", () => {
+  it("documents llm node type + {{input}} template", () => {
+    const rules = renderFlowbuilderRules();
+    expect(rules).toContain('"type": "llm"');
+    expect(rules).toContain("{{input}}");
+    expect(rules).toContain("{{input.data");
+  });
+
+  it("documents the execute → get_run_result pattern", () => {
+    const rules = renderFlowbuilderRules();
+    expect(rules).toContain("flowbuilder_execute_flow");
+    expect(rules).toContain("flowbuilder_get_run_result");
+    expect(rules).toContain("waitMs");
+  });
+});

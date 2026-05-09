@@ -55,8 +55,8 @@ function projectNode(node: FlowbuilderNode): NodeProjection {
     case "flow": {
       const [category] = node.flow.split("/");
       return {
-        type: category === "github" || category === "http" ? "http" : category === "support" ? "human" : "llm",
-        icon: category === "github" || category === "http" ? "http" : category === "support" ? "user" : "llm",
+        type: category === "github" || category === "http" ? "http" : category === "support" ? "human" : "transform",
+        icon: category === "github" || category === "http" ? "http" : category === "support" ? "user" : "transform",
         label: flowLabel(node.flow),
         sub: `${node.flow} · ${summarizeParams(node.params)}`,
       };
@@ -81,6 +81,13 @@ function projectNode(node: FlowbuilderNode): NodeProjection {
         icon: "check",
         label: "Output",
         sub: summarizeValue(node.value),
+      };
+    case "llm":
+      return {
+        type: "llm",
+        icon: "llm",
+        label: "LLM",
+        sub: node.model ?? "claude-sonnet",
       };
   }
 }

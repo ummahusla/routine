@@ -4,6 +4,9 @@ type PromptBoxProps = {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onClear?: () => void;
+  canClear?: boolean;
+  clearDisabled?: boolean;
   onStop?: () => void;
   isRunning?: boolean;
   large?: boolean;
@@ -14,6 +17,9 @@ export function PromptBox({
   value,
   onChange,
   onSubmit,
+  onClear,
+  canClear,
+  clearDisabled,
   onStop,
   isRunning,
   large,
@@ -56,16 +62,26 @@ export function PromptBox({
             </svg>
           </button>
         ) : (
-          <button
-            className={`pb-send ${value.trim() ? "is-ready" : ""}`}
-            onClick={onSubmit}
-            disabled={!value.trim()}
-          >
-            <span>Build flow</span>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-          </button>
+          <div className="pb-actions">
+            {canClear && onClear && (
+              <button
+                type="button"
+                className="pb-clear"
+                onClick={onClear}
+                disabled={clearDisabled}
+                title="Clear chat transcript only. The graph state stays unchanged."
+              >
+                Clear chat
+              </button>
+            )}
+            <button
+              className={`pb-send ${value.trim() ? "is-ready" : ""}`}
+              onClick={onSubmit}
+              disabled={!value.trim()}
+            >
+              <span>Send</span>
+            </button>
+          </div>
         )}
       </div>
     </div>
