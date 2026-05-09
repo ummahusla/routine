@@ -58,6 +58,8 @@ describe("Session.send", () => {
     const fa = makeFakeAgent({});
     fa.run.stream = async function* () {
       await blockedStream;
+      // unreachable; satisfies require-yield while keeping the stream blocked
+      yield undefined as never;
     };
     installFakeSdk({ createBehavior: [{ agent: fa }] });
 
@@ -134,6 +136,8 @@ describe("Session.send", () => {
     const fa = makeFakeAgent({ waitResult: { status: "cancelled" } });
     fa.run.stream = async function* () {
       await blockedStream;
+      // unreachable; satisfies require-yield while keeping the stream blocked
+      yield undefined as never;
     };
     installFakeSdk({ createBehavior: [{ agent: fa }] });
 
