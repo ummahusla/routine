@@ -60,7 +60,8 @@
       "Bash(grep -rn *)",
       "Bash(git add *)",
       "Bash(pnpm exec *)",
-      "Bash(grep -n \"^\\\\.fc-node$\\\\|^\\\\.fc-node{\" /Users/arina/Documents/Dev/flow-build/src/renderer/src/index.css)"
+      "Bash(grep -n \"^\\\\.fc-node$\\\\|^\\\\.fc-node{\" /Users/arina/Documents/Dev/flow-build/src/renderer/src/index.css)",
+      "Bash(pnpm run *)"
     ],
     "additionalDirectories": [
       "/tmp"
