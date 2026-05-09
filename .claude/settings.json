@@ -11,7 +11,20 @@
       "Bash(node --check src/renderer/src/components/tweaks/useTweaks.js)",
       "Bash(node --check src/renderer/src/utils/flow.js)",
       "Bash(node --check src/renderer/src/data/typeColors.js)",
-      "Bash(node --check src/renderer/src/data/constants.js)"
+      "Bash(node --check src/renderer/src/data/constants.js)",
+      "Bash(rm -rf /tmp/design-pkg3)",
+      "Bash(mkdir -p /tmp/design-pkg3)",
+      "Bash(tar -xzf /Users/arina/.claude/projects/-Users-arina-Documents-Dev-flow-build/591e25c3-1aaa-4274-add4-f4b2a35478d0/tool-results/webfetch-1778319223830-zrftg2.bin -C /tmp/design-pkg3)",
+      "Read(//private/tmp/design-pkg2/flowbuild/**)",
+      "Read(//private/tmp/design-pkg3/flowbuild/project/**)",
+      "Read(//tmp/design-pkg3/flowbuild/chats/**)",
+      "Read(//private/tmp/design-pkg3/flowbuild/chats/**)",
+      "Bash(rm -rf /tmp/design-pkg4)",
+      "Bash(mkdir -p /tmp/design-pkg4)",
+      "Bash(tar -xzf /Users/arina/.claude/projects/-Users-arina-Documents-Dev-flow-build/591e25c3-1aaa-4274-add4-f4b2a35478d0/tool-results/webfetch-1778320687478-b8xqve.bin -C /tmp/design-pkg4)",
+      "Read(//private/tmp/design-pkg3/flowbuild/**)",
+      "Read(//private/tmp/design-pkg4/flowbuild/chats/**)",
+      "Read(//private/tmp/design-pkg4/flowbuild/project/**)"
     ]
   }
 }

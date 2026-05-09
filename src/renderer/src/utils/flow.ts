@@ -65,6 +65,3 @@ export function edgePath(from: FlowNode, to: FlowNode): string {
   const dx = Math.max(28, Math.abs(x2 - x1) * 0.55);
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 }
-
-export const CANVAS_PAD_X = PAD_X;
-export const CANVAS_PAD_Y = PAD_Y;

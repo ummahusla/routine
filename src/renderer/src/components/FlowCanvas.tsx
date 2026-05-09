@@ -1,8 +1,15 @@
 import { useRef, useState, type CSSProperties, type MouseEvent } from "react";
-import { NODE_W } from "../data/constants";
-import { nodePos, edgePath, CANVAS_PAD_X, CANVAS_PAD_Y } from "../utils/flow";
+import { NODE_W, NODE_H } from "../data/constants";
+import { nodePos, edgePath } from "../utils/flow";
 import { FlowNode } from "./FlowNode";
 import type { Flow, FlowNode as FlowNodeModel, RunState } from "../types";
+
+// Generous pan margin so the user can drag the background past the content
+// in any direction; floor of 4000×2000 keeps a roomy canvas even for tiny flows.
+const PAN_MARGIN_X = 2400;
+const PAN_MARGIN_Y = 1200;
+const MIN_CANVAS_W = 4000;
+const MIN_CANVAS_H = 2000;
 
 type DragState = {
   id: string;
@@ -21,9 +28,18 @@ type FlowCanvasProps = {
   onFocus?: (id: string) => void;
   onMoveNode?: (id: string, x: number, y: number) => void;
   onDeleteNode?: (id: string) => void;
+  onPromptChange?: (id: string, prompt: string) => void;
 };
 
-export function FlowCanvas({ flow, runState, building, onFocus, onMoveNode, onDeleteNode }: FlowCanvasProps) {
+export function FlowCanvas({
+  flow,
+  runState,
+  building,
+  onFocus,
+  onMoveNode,
+  onDeleteNode,
+  onPromptChange,
+}: FlowCanvasProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const dragRef = useRef<DragState | null>(null);
 
@@ -31,9 +47,9 @@ export function FlowCanvas({ flow, runState, building, onFocus, onMoveNode, onDe
   const nodeMap = Object.fromEntries(flow.nodes.map((node) => [node.id, node])) as Record<string, FlowNodeModel>;
 
   const maxX = Math.max(...flow.nodes.map((node) => nodePos(node).x + NODE_W));
-  const maxY = Math.max(...flow.nodes.map((node) => nodePos(node).y + 64));
-  const W = Math.max(maxX + CANVAS_PAD_X, 800);
-  const H = Math.max(maxY + CANVAS_PAD_Y, 320);
+  const maxY = Math.max(...flow.nodes.map((node) => nodePos(node).y + NODE_H));
+  const W = Math.max(maxX + PAN_MARGIN_X, MIN_CANVAS_W);
+  const H = Math.max(maxY + PAN_MARGIN_Y, MIN_CANVAS_H);
 
   function handleNodeMouseDown(event: MouseEvent<HTMLDivElement>, node: FlowNodeModel): void {
     if (event.button !== 0) return;
@@ -74,9 +90,35 @@ export function FlowCanvas({ flow, runState, building, onFocus, onMoveNode, onDe
     window.addEventListener("mouseup", onUp);
   }
 
+  // Pan only via middle mouse button; left-click on the background does
+  // nothing (so it doesn't hijack text-input focus or node deselect).
+  function handleBgMouseDown(event: MouseEvent<HTMLDivElement>): void {
+    if (event.button !== 1) return;
+    if ((event.target as HTMLElement).closest(".fc-node")) return;
+    event.preventDefault();
+    const scroller = document.querySelector<HTMLElement>(".cf-canvas-wrap");
+    if (!scroller) return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startScrollX = scroller.scrollLeft;
+    const startScrollY = scroller.scrollTop;
+    document.body.style.cursor = "grabbing";
+    const onMove = (moveEvent: globalThis.MouseEvent): void => {
+      scroller.scrollLeft = startScrollX - (moveEvent.clientX - startX);
+      scroller.scrollTop = startScrollY - (moveEvent.clientY - startY);
+    };
+    const onUp = (): void => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
   return (
     <div className="fc-wrap">
-      <div className="fc-canvas" style={{ width: W, height: H }}>
+      <div className="fc-canvas" style={{ width: W, height: H }} onMouseDown={handleBgMouseDown}>
         <svg className="fc-edges" width={W} height={H}>
           <defs>
             <marker id="fc-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
@@ -113,6 +155,7 @@ export function FlowCanvas({ flow, runState, building, onFocus, onMoveNode, onDe
             dragging={draggingId === node.id}
             onMouseDown={(event) => handleNodeMouseDown(event, node)}
             onDelete={() => onDeleteNode?.(node.id)}
+            onPromptChange={onPromptChange}
           />
         ))}
 

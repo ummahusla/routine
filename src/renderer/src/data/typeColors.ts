@@ -1,6 +1,7 @@
 import type { NodeType, TypeColor } from "../types";
 
 export const TYPE_COLORS: Record<NodeType, TypeColor> = {
+  prompt: { bg: "rgba(125, 145, 255, 0.10)", border: "rgba(125, 145, 255, 0.42)", icon: "#9aa9ff" },
   trigger: { bg: "rgba(227, 168, 87, 0.12)", border: "rgba(227, 168, 87, 0.35)", icon: "#f0b46a" },
   llm: { bg: "rgba(125, 145, 255, 0.12)", border: "rgba(125, 145, 255, 0.38)", icon: "#9aa9ff" },
   transform: { bg: "rgba(180, 180, 200, 0.08)", border: "rgba(180, 180, 200, 0.30)", icon: "#c4c4cc" },

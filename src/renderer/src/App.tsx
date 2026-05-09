@@ -26,13 +26,20 @@ import type { ChatMessage, Flow, FlowEdge, FlowNode, FlowTemplateId, PaletteItem
 
 const TWEAK_DEFAULTS: TweakSettings = {
   accent: "#5fc88f",
-  showMinimap: true,
+  showMinimap: false,
   density: "regular",
 };
 
 const INITIAL_TEMPLATE_ID: FlowTemplateId = "release_announce";
 
 const SMART_ADD_ITEMS = {
+  prompt: {
+    type: "prompt",
+    icon: "llm",
+    label: "Prompt block",
+    sub: "editable",
+    prompt: "You are a helpful assistant. {{ input }}",
+  },
   slack: { type: "output", icon: "slack", label: "Slack message", sub: "#channel" },
   email: { type: "output", icon: "mail", label: "Send email", sub: "smtp" },
   webhook: { type: "trigger", icon: "webhook", label: "Webhook", sub: "POST /event" },
@@ -68,6 +75,7 @@ export function App() {
     },
   ]);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [chatHeight, setChatHeight] = useState(180);
   const stopRef = useRef(false);
 
   function handleSubmit(text: string): void {
@@ -245,6 +253,7 @@ export function App() {
         col: 0,
         row: 0,
         _userPlaced: true,
+        ...(spec.prompt != null ? { prompt: spec.prompt } : {}),
       };
       const sourceNode = current.nodes.find((node) => {
         const pos = nodePos(node);
@@ -253,6 +262,15 @@ export function App() {
       const newEdges: FlowEdge[] = sourceNode ? [...current.edges, [sourceNode.id, newId]] : current.edges;
       return { ...current, nodes: [...current.nodes, newNode], edges: newEdges };
     });
+  }
+
+  function handlePromptChange(id: string, prompt: string): void {
+    setFlow((current) =>
+      current && {
+        ...current,
+        nodes: current.nodes.map((node) => (node.id === id ? { ...node, prompt } : node)),
+      },
+    );
   }
 
   function handleRefine(): void {
@@ -282,7 +300,7 @@ export function App() {
     }
 
     const addMatch = lower.match(
-      /add (?:a |an )?(slack|email|webhook|http|llm|filter|approval|database|spreadsheet|schedule|transform|code)/,
+      /add (?:a |an )?(prompt|slack|email|webhook|http|llm|filter|approval|database|spreadsheet|schedule|transform|code)/,
     );
     if (addMatch) {
       const kind = addMatch[1] as keyof typeof SMART_ADD_ITEMS;
@@ -316,38 +334,48 @@ export function App() {
 
   return (
     <div className={`app density-${t.density}`} style={{ "--accent": t.accent } as CSSProperties}>
-      <Sidebar flows={PREVIOUS_FLOWS} selectedId={selectedId} onSelect={handleSelect} onNew={handleNew} />
+      <Sidebar
+        flows={PREVIOUS_FLOWS}
+        selectedId={selectedId}
+        runningId={running ? selectedId : null}
+        onSelect={handleSelect}
+        onNew={handleNew}
+      />
 
       <main className="main">
-        <TopBar flow={flow} runState={runState} building={building} running={running} onHome={handleNew} />
+        <TopBar flow={flow} onHome={handleNew} />
 
         {!flow && !building && <EmptyState onSubmit={handleSubmit} suggestions={SUGGESTED_PROMPTS} />}
 
         {(flow || building) && (
           <div className="chatflow">
-            <ChatThread messages={messages} />
-
-            <div className="cf-canvas-wrap">
-              <FlowCanvas
-                flow={flow}
-                runState={runState}
-                building={building}
-                focusId={focusId}
-                onFocus={setFocusId}
-                onMoveNode={handleMoveNode}
-                onDeleteNode={handleDeleteNode}
-              />
-              {t.showMinimap && flow && <Minimap flow={flow} />}
+            <div className="cf-stage">
+              <div className="cf-canvas-wrap">
+                <FlowCanvas
+                  flow={flow}
+                  runState={runState}
+                  building={building}
+                  focusId={focusId}
+                  onFocus={setFocusId}
+                  onMoveNode={handleMoveNode}
+                  onDeleteNode={handleDeleteNode}
+                  onPromptChange={handlePromptChange}
+                />
+                {t.showMinimap && flow && <Minimap flow={flow} />}
+              </div>
               <FlowLegend />
             </div>
 
-            <div className="cf-refine">
-              <PromptBox
-                value={refineVal}
-                onChange={setRefineVal}
-                onSubmit={handleRefine}
-                placeholder="Refine the flow… e.g. 'add a Slack approval before sending'"
-              />
+            <div className="cf-bottom">
+              <ChatThread messages={messages} height={chatHeight} onResize={setChatHeight} />
+              <div className="cf-refine">
+                <PromptBox
+                  value={refineVal}
+                  onChange={setRefineVal}
+                  onSubmit={handleRefine}
+                  placeholder="Refine the flow… e.g. 'add a Slack approval before sending'"
+                />
+              </div>
             </div>
           </div>
         )}

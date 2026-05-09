@@ -5,15 +5,30 @@ import type { FlowTemplateId, PreviousFlow } from "../types";
 type FlowItemProps = {
   flow: PreviousFlow;
   active: boolean;
+  running: boolean;
   onClick: () => void;
 };
 
-function FlowItem({ flow, active, onClick }: FlowItemProps) {
+function FlowItem({ flow, active, running, onClick }: FlowItemProps) {
   return (
-    <button className={`sb-item ${active ? "is-active" : ""}`} onClick={onClick}>
-      <span className={`sb-dot sb-dot-${flow.status}`} />
+    <button
+      className={`sb-item ${active ? "is-active" : ""} ${running ? "is-running" : ""}`}
+      onClick={onClick}
+    >
+      <span className={`sb-dot sb-dot-${running ? "running" : flow.status}`} />
       <span className="sb-item-label">{flow.label}</span>
-      <span className="sb-item-when">{flow.when}</span>
+      {running ? (
+        <span className="sb-item-running">
+          <span className="sb-bars">
+            <i />
+            <i />
+            <i />
+          </span>
+          running
+        </span>
+      ) : (
+        <span className="sb-item-when">{flow.when}</span>
+      )}
     </button>
   );
 }
@@ -21,11 +36,12 @@ function FlowItem({ flow, active, onClick }: FlowItemProps) {
 type SidebarProps = {
   flows: PreviousFlow[];
   selectedId: FlowTemplateId | null;
+  runningId: FlowTemplateId | null;
   onSelect: (id: FlowTemplateId) => void;
   onNew: () => void;
 };
 
-export function Sidebar({ flows, selectedId, onSelect, onNew }: SidebarProps) {
+export function Sidebar({ flows, selectedId, runningId, onSelect, onNew }: SidebarProps) {
   const [q, setQ] = useState("");
   const grouped = useMemo(() => {
     const today: PreviousFlow[] = [];
@@ -68,12 +84,24 @@ export function Sidebar({ flows, selectedId, onSelect, onNew }: SidebarProps) {
       <div className="sb-section">
         {grouped.today.length > 0 && <div className="sb-heading">Today</div>}
         {grouped.today.map((flow) => (
-          <FlowItem key={flow.id} flow={flow} active={flow.id === selectedId} onClick={() => onSelect(flow.id)} />
+          <FlowItem
+            key={flow.id}
+            flow={flow}
+            active={flow.id === selectedId}
+            running={flow.id === runningId || flow.status === "running"}
+            onClick={() => onSelect(flow.id)}
+          />
         ))}
 
         {grouped.earlier.length > 0 && <div className="sb-heading">Earlier</div>}
         {grouped.earlier.map((flow) => (
-          <FlowItem key={flow.id} flow={flow} active={flow.id === selectedId} onClick={() => onSelect(flow.id)} />
+          <FlowItem
+            key={flow.id}
+            flow={flow}
+            active={flow.id === selectedId}
+            running={flow.id === runningId || flow.status === "running"}
+            onClick={() => onSelect(flow.id)}
+          />
         ))}
       </div>
 

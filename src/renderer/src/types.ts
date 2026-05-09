@@ -7,7 +7,8 @@ export type NodeType =
   | "storage"
   | "output"
   | "branch"
-  | "human";
+  | "human"
+  | "prompt";
 
 export type IconName =
   | "schedule"
@@ -39,6 +40,7 @@ export type FlowNode = {
   row: number;
   x?: number;
   y?: number;
+  prompt?: string;
   _userPlaced?: boolean;
 };
 
@@ -79,7 +81,7 @@ export type PreviousFlow = {
   id: FlowTemplateId;
   label: string;
   when: string;
-  status: "deployed" | "draft";
+  status: "deployed" | "draft" | "running";
   active?: boolean;
 };
 
@@ -93,6 +95,7 @@ export type PaletteItem = {
   icon: IconName;
   label: string;
   sub: string;
+  prompt?: string;
 };
 
 export type TypeColor = {

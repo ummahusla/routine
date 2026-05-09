@@ -178,7 +178,7 @@ export const PREVIOUS_FLOWS: PreviousFlow[] = [
   { id: "release_announce", label: "Multi-channel release announcement", when: "1h ago", active: true, status: "deployed" },
   { id: "github_digest", label: "GitHub trending digest", when: "3h ago", status: "deployed" },
   { id: "support_triage", label: "Support ticket triage", when: "Yesterday", status: "draft" },
-  { id: "data_etl", label: "Daily analytics ETL", when: "2 days", status: "deployed" },
+  { id: "data_etl", label: "Daily analytics ETL", when: "running now", status: "running" },
   { id: "ci_pipeline", label: "ci.yml — push to main", when: "3 days", status: "deployed" },
   { id: "lead_enrichment", label: "Lead enrichment + outreach", when: "Last week", status: "draft" },
   { id: "meeting_notes", label: "Meeting notes → action items", when: "2 weeks", status: "deployed" },
