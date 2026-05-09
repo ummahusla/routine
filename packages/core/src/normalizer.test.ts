@@ -107,3 +107,83 @@ describe("normalize known SDKMessage types", () => {
     expect(events).toEqual([]);
   });
 });
+
+describe("normalize defensive parsing", () => {
+  it("unknown type → warn + drop", () => {
+    const log = mkLogger();
+    const events = normalize({ type: "wat", x: 1 }, log);
+    expect(events).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith("unknown SDKMessage type", { type: "wat" });
+  });
+
+  it("assistant with non-array content → warn + drop entire message", () => {
+    const log = mkLogger();
+    const events = normalize({ type: "assistant", message: { content: "string" } }, log);
+    expect(events).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith("schema drift", {
+      type: "assistant",
+      field: "message.content",
+    });
+  });
+
+  it("assistant text block missing text → warn + skip block", () => {
+    const log = mkLogger();
+    const events = normalize(
+      { type: "assistant", message: { content: [{ type: "text" }] } },
+      log,
+    );
+    expect(events).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith("schema drift", {
+      type: "assistant",
+      field: "block.text",
+    });
+  });
+
+  it("thinking missing text → warn + drop", () => {
+    const log = mkLogger();
+    const events = normalize({ type: "thinking" }, log);
+    expect(events).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith("schema drift", { type: "thinking", field: "text" });
+  });
+
+  it("tool_call missing name → warn + drop", () => {
+    const log = mkLogger();
+    const events = normalize(
+      { type: "tool_call", call_id: "x", status: "running" },
+      log,
+    );
+    expect(events).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith("schema drift", {
+      type: "tool_call",
+      field: "name|call_id",
+    });
+  });
+
+  it("tool_call missing call_id → warn + drop", () => {
+    const log = mkLogger();
+    const events = normalize(
+      { type: "tool_call", name: "shell", status: "running" },
+      log,
+    );
+    expect(events).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith("schema drift", {
+      type: "tool_call",
+      field: "name|call_id",
+    });
+  });
+
+  it("tool_call unknown status → warn + drop", () => {
+    const log = mkLogger();
+    const events = normalize(
+      { type: "tool_call", name: "shell", call_id: "x", status: "weird" },
+      log,
+    );
+    expect(events).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith("unknown tool_call status", { status: "weird" });
+  });
+
+  it("works without a logger argument", () => {
+    expect(() => normalize({ type: "wat" })).not.toThrow();
+    expect(normalize({ type: "wat" })).toEqual([]);
+  });
+});
