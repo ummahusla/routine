@@ -2,6 +2,7 @@
 
 import type { ElectronAPI } from "@electron-toolkit/preload";
 import type {
+  ModelInfo,
   PersistedTurn,
   SessionEvent,
   SessionMetadata,
@@ -123,12 +124,19 @@ declare global {
         list(): Promise<SessionMetadata[]>;
         create(opts?: { title?: string; model?: string }): Promise<{ sessionId: string }>;
         open(sessionId: string): Promise<{ metadata: SessionMetadata; turns: PersistedTurn[] }>;
-        send(sessionId: string, prompt: string): Promise<TurnResult>;
+        send(sessionId: string, prompt: string, model?: string): Promise<TurnResult>;
         cancel(sessionId: string): Promise<void>;
         clear(sessionId: string): Promise<void>;
         rename(sessionId: string, title: string): Promise<void>;
         delete(sessionId: string): Promise<void>;
         watch(sessionId: string, onEvent: (e: SessionEvent) => void): () => void;
+      };
+      models: {
+        list(opts?: { refresh?: boolean }): Promise<ModelInfo[]>;
+      };
+      app: {
+        getDefaultModel(): Promise<string>;
+        setDefaultModel(model: string): Promise<void>;
       };
       run: {
         execute(input: { sessionId: string }): Promise<RunIpcOk<{ runId: string }> | RunIpcErr>;
