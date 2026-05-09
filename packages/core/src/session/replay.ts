@@ -24,10 +24,11 @@ export function buildReplay(turns: PersistedTurn[]): string {
 
 function renderAssistant(t: PersistedTurn): string {
   const parts: string[] = ["Assistant:"];
-  // Interleave text blocks with tool calls in the order seen during streaming.
-  // Reducer separates them; here we render text first, then tool block list.
-  // This is acceptable because Cursor itself emits assistant text and tool_use
-  // blocks with no strict interleave guarantee for reconstruction.
+  // Reducer captures text deltas and tool calls as separate streams, so true
+  // interleave is unrecoverable from PersistedTurn. We render tool calls first
+  // then any final assistant text — this matches the typical pattern (assistant
+  // uses tools, then summarises) and Cursor itself emits these blocks without
+  // a strict reconstruction guarantee.
   for (const tc of t.assistant.toolCalls) {
     parts.push(renderToolCall(tc));
   }
