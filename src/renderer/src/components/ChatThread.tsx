@@ -63,6 +63,15 @@ export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
                       </ReactMarkdown>
                     </div>
                   )}
+                  {turn.status === "running" &&
+                    turn.assistant.textBlocks.length === 0 &&
+                    turn.assistant.toolCalls.length === 0 && (
+                      <div className="msg-typing" aria-label="Waiting for response">
+                        <span className="msg-typing-dot" />
+                        <span className="msg-typing-dot" />
+                        <span className="msg-typing-dot" />
+                      </div>
+                    )}
                   {turn.status !== "completed" && turn.status !== "running" && (
                     <div className="msg-end">
                       [turn {turn.status}]
