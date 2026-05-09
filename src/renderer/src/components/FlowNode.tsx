@@ -13,6 +13,7 @@ type FlowNodeProps = {
   runState: RunState;
   dragging: boolean;
   connecting?: boolean;
+  selected?: boolean;
   onMouseDown: MouseEventHandler<HTMLDivElement>;
   onDelete?: () => void;
   onPromptChange?: (id: string, prompt: string) => void;
@@ -25,6 +26,7 @@ export function FlowNode({
   runState,
   dragging,
   connecting,
+  selected,
   onMouseDown,
   onDelete,
   onPromptChange,
@@ -41,7 +43,7 @@ export function FlowNode({
 
   return (
     <div
-      className={`fc-node fc-type-${n.type} ${status ? `fc-status-${status}` : ""} ${dragging ? "is-dragging" : ""} ${isPrompt ? "fc-node-prompt" : ""} ${connecting ? "is-connect-target" : ""}`}
+      className={`fc-node fc-type-${n.type} ${status ? `fc-status-${status}` : ""} ${dragging ? "is-dragging" : ""} ${isPrompt ? "fc-node-prompt" : ""} ${connecting ? "is-connect-target" : ""} ${selected ? "is-selected" : ""}`}
       data-node-id={n.id}
       style={{
         left: x,
