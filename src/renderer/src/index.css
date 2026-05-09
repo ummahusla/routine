@@ -138,9 +138,13 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 /* Prompt box */
 .pb { background: var(--surface); border: 1px solid var(--border-2); border-radius: 12px; width: 100%; transition: border-color .14s, box-shadow .14s; box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.35); }
 .pb:focus-within { border-color: color-mix(in oklab, var(--accent) 50%, var(--border-2)); box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 32px rgba(0,0,0,0.4), 0 0 0 3px color-mix(in oklab, var(--accent) 12%, transparent); }
-.pb textarea { width: 100%; padding: 14px 16px 4px; background: transparent; border: 0; outline: 0; color: var(--text); resize: none; font-family: inherit; font-size: 14px; line-height: 1.55; min-height: 24px; max-height: 200px; }
+.pb textarea { width: 100%; padding: 14px 16px 4px; background: transparent; border: 0; outline: 0; color: var(--text); resize: none; font-family: inherit; font-size: 14px; line-height: 1.55; min-height: 24px; max-height: 200px; scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 .pb-lg textarea { font-size: 15.5px; padding: 18px 20px 4px; }
 .pb textarea::placeholder { color: var(--dim); }
+.pb textarea::-webkit-scrollbar { width: 8px; }
+.pb textarea::-webkit-scrollbar-track { background: transparent; }
+.pb textarea::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; border: 2px solid var(--surface); }
+.pb textarea::-webkit-scrollbar-thumb:hover { background: var(--border-2); }
 .pb-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 10px; gap: 8px; }
 .pb-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .pb-tool { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--muted); cursor: pointer; font-size: 11.5px; }
