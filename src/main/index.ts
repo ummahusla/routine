@@ -1,9 +1,14 @@
 import { app, shell, BrowserWindow, ipcMain } from "electron";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { join, resolve } from "path";
-import { Agent, CursorAgentError } from "@cursor/sdk";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
-import { ManifestSchema, StateSchema, validateRefIntegrity, type Manifest, type State } from "@flow-build/flowbuilder";
+import {
+  ManifestSchema,
+  StateSchema,
+  validateRefIntegrity,
+  type Manifest,
+  type State,
+} from "../../packages/flowbuilder/src/schema";
 import icon from "../../resources/icon.png?asset";
 
 type CursorChatRequest = {
@@ -20,6 +25,15 @@ type CursorChatResult =
       ok: false;
       error: string;
     };
+
+type CursorAgent = {
+  send(prompt: string): Promise<{
+    supports(feature: string): boolean;
+    stream(): AsyncIterable<unknown>;
+    wait(): Promise<{ status: string }>;
+  }>;
+  [Symbol.asyncDispose]?: () => Promise<void> | void;
+};
 
 type FlowbuilderSessionSummary = {
   id: string;
@@ -224,15 +238,23 @@ function extractAssistantText(event: unknown): string {
   );
 }
 
+function formatCursorSdkError(error: unknown): string {
+  if (!(error instanceof Error)) return "Unknown Cursor SDK error";
+
+  const maybeRetryable = error as Error & { isRetryable?: unknown };
+  return `${error.message}${maybeRetryable.isRetryable === true ? " (retryable)" : ""}`;
+}
+
 ipcMain.handle("cursor-chat:send", async (event, { requestId, prompt }: CursorChatRequest): Promise<CursorChatResult> => {
   const apiKey = process.env.CURSOR_API_KEY;
   if (!apiKey) {
     return { ok: false, error: "CURSOR_API_KEY is missing. Add it to .env.local or the app environment." };
   }
 
-  let agent: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  let agent: CursorAgent | undefined;
 
   try {
+    const { Agent } = await import("@cursor/sdk");
     agent = await Agent.create({
       apiKey,
       model: { id: "composer-2" },
@@ -254,16 +276,11 @@ ipcMain.handle("cursor-chat:send", async (event, { requestId, prompt }: CursorCh
     event.sender.send("cursor-chat:event", { requestId, type: "done", status: result.status });
     return { ok: true, status: result.status };
   } catch (error) {
-    const message =
-      error instanceof CursorAgentError
-        ? `${error.message}${error.isRetryable ? " (retryable)" : ""}`
-        : error instanceof Error
-          ? error.message
-          : "Unknown Cursor SDK error";
+    const message = formatCursorSdkError(error);
     event.sender.send("cursor-chat:event", { requestId, type: "error", error: message });
     return { ok: false, error: message };
   } finally {
-    await agent?.[Symbol.asyncDispose]();
+    await agent?.[Symbol.asyncDispose]?.();
   }
 });
 
