@@ -60,6 +60,15 @@ export function buildMcpServer(opts: SafeShellMcpOptions): McpServer {
   // above does the real validation inside the handler so we can return a JSON
   // envelope `{ok:false, error:"validation: ..."}` instead of the SDK's
   // plain-text McpError that bypasses our envelope contract.
+  //
+  // Asymmetry note: the envelope contract holds for BOUND violations only
+  // (empty command, oversize timeoutMs, etc.). TYPE violations (e.g. caller
+  // passes `command: 42`) short-circuit at the SDK boundary and surface as
+  // an `isError: true` text content with `MCP error -32602: ...`, NOT as a
+  // parseable JSON envelope. Downstream callers in this monorepo build their
+  // own args and never pass wrong-typed values; if a model emits a type
+  // mismatch, the SDK's error response is still informative enough for the
+  // model to self-correct.
   const ShInputOuter = {
     command: z.string().describe("Shell command to run via /bin/sh -c."),
     cwd: z
