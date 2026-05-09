@@ -10,6 +10,7 @@ import {
 } from "./errors.js";
 import type { SessionManager } from "./session.js";
 import { summarizeNodes, type RunEventTail, type RunResult } from "@flow-build/engine";
+import { listModels } from "@flow-build/core";
 
 export type FlowbuilderMcpHandle = {
   url: string;
@@ -72,6 +73,20 @@ function buildMcpServer(
           ok: false,
           error: errorToToolMessage(e),
         });
+      }
+    },
+  );
+
+  mcp.tool(
+    "flowbuilder_list_models",
+    "List valid `model` ids for `llm` nodes. Returns the live Cursor catalog when CURSOR_API_KEY is configured, or a curated static fallback otherwise. Always returns `{ models: [{ id, displayName, provider, pricing? }], default: \"default\" }`. Use this BEFORE setting an llm node's `model` to a non-default value — passing an unknown id makes the run fail.",
+    {},
+    async () => {
+      try {
+        const models = await listModels({});
+        return asTextResult({ ok: true, models, default: "default" });
+      } catch (e) {
+        return asTextResult({ ok: false, error: errorToToolMessage(e) });
       }
     },
   );

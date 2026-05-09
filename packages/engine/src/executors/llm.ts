@@ -1,6 +1,7 @@
 import type { Node } from "@flow-build/flowbuilder";
 import type { CursorClient, Envelope } from "../types.js";
 import { substitute } from "../template.js";
+import { EngineError } from "../errors.js";
 
 export type ExecuteLlmOpts = {
   node: Extract<Node, { type: "llm" }>;
@@ -43,6 +44,13 @@ export async function executeLlm(opts: ExecuteLlmOpts): Promise<Envelope> {
     final = await call.done;
   }
   const text = final.text !== "" ? final.text : collected;
+
+  if (text === "") {
+    throw new EngineError(
+      "LLM_EMPTY_OUTPUT",
+      `LLM node "${node.id}" produced no text. Check model id "${node.model}" is valid (e.g. claude-4.6-sonnet, claude-4.7-opus, composer-2) and that CURSOR_API_KEY is set.`,
+    );
+  }
 
   const env: Envelope = { text };
   const m = text.match(FENCED_JSON);

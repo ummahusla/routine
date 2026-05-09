@@ -8,13 +8,14 @@ alwaysApply: true
 
 This session edits a flow graph. The graph lives at \`<flowbuilder-base>/sessions/<sessionId>/state.json\`. The session is fixed for the lifetime of this run; you cannot switch sessions.
 
-Use the MCP tools registered as \`flowbuilder_get_state\`, \`flowbuilder_set_state\`, \`flowbuilder_execute_flow\`, \`flowbuilder_get_run_result\`, and \`flowbuilder_tail_run_events\`.
+Use the MCP tools registered as \`flowbuilder_get_state\`, \`flowbuilder_set_state\`, \`flowbuilder_execute_flow\`, \`flowbuilder_get_run_result\`, \`flowbuilder_tail_run_events\`, and \`flowbuilder_list_models\`.
 
 ## Tools
 
 ### Editing the graph
 - \`flowbuilder_get_state()\` — read the current full state.
 - \`flowbuilder_set_state({ state })\` — write the FULL state. You must always pass the complete state; partial patches are not supported.
+- \`flowbuilder_list_models()\` — list valid \`model\` ids for \`llm\` nodes (live Cursor catalog when \`CURSOR_API_KEY\` is set; static fallback otherwise). Returns \`{ models: [{ id, displayName, provider, pricing? }, ...], default: "default" }\`. Always callable; no side effects.
 
 ### Executing the graph
 - \`flowbuilder_execute_flow({ inputs? })\` — start a run of the saved graph. Returns \`{ runId, sessionId }\` immediately; the run executes asynchronously. \`inputs\` is an optional \`{ [nodeId]: value }\` map that populates input nodes. Any \`input\` node with \`required: true\` and no static \`value\` MUST have an entry in \`inputs\` or the run fails with \`MISSING_REQUIRED_INPUT\`. Inspect the graph via \`flowbuilder_get_state\` to discover which input node ids are required (look at \`required\`, \`label\`, and \`description\` on input nodes).
@@ -56,7 +57,7 @@ You must always pass the **complete** state to \`flowbuilder_set_state\`. Partia
   "nodes": [
     { "id": "n1", "type": "input",  "value": <any>, "required": false, "label": "<optional human-readable name>", "description": "<optional hint>" },
     { "id": "n2", "type": "flow",   "flow": "<category>/<name>", "params": { ... } },
-    { "id": "n3", "type": "llm",    "prompt": "<template>", "model": "claude-sonnet-4-6", "maxTokens": 4096, "temperature": 0.7 },
+    { "id": "n3", "type": "llm",    "prompt": "<template>", "model": "default", "maxTokens": 4096, "temperature": 0.7 },
     { "id": "n4", "type": "branch", "cond": "<expression>" },
     { "id": "n5", "type": "merge" },
     { "id": "n6", "type": "output", "value": <any> }
@@ -76,7 +77,9 @@ Constraints:
 
 ## LLM node
 
-An \`llm\` node runs a single-shot LLM completion. Its \`prompt\` is a template — use \`{{input}}\` to inject upstream text and \`{{input.data.<path>}}\` to inject structured fields. \`model\`, \`maxTokens\`, and \`temperature\` have sensible defaults; only set them when you have a reason. \`systemPrompt\` is optional.
+An \`llm\` node runs a single-shot LLM completion. Its \`prompt\` is a template — use \`{{input}}\` to inject upstream text and \`{{input.data.<path>}}\` to inject structured fields. \`maxTokens\` and \`temperature\` have sensible defaults. \`systemPrompt\` is optional.
+
+\`model\` defaults to \`"default"\` — Cursor routes this to the user's currently configured default model, which is the right choice for almost every flow. Only override when the node has a specific need (e.g. force a reasoning-heavy or fast/cheap model). To see valid model ids, call \`flowbuilder_list_models\` — passing an unknown id makes the run fail with \`LLM_STREAM_ERROR\`.
 
 LLM nodes have **no tool access** — they cannot call MCP tools or run shell commands. For multi-step work that needs tools, prefer a \`flow\` node (which invokes a rote flow) or chain multiple LLM nodes.
 

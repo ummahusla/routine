@@ -48,7 +48,7 @@ export const MergeNodeSchema = BaseNodeSchema.extend({
 export const LlmNodeSchema = BaseNodeSchema.extend({
   type: z.literal("llm"),
   prompt: z.string().min(1),
-  model: z.string().default("claude-sonnet-4-6"),
+  model: z.string().default("default"),
   maxTokens: z.number().int().positive().default(4096),
   temperature: z.number().min(0).max(2).default(0.7),
   systemPrompt: z.string().optional(),
