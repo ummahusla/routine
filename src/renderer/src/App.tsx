@@ -900,7 +900,6 @@ export function App() {
             sessionId={selectedSessionId}
             activeRunId={activeRunId}
             selectedRunId={selectedRunId}
-            fbNode={fbState?.nodes.find((node) => node.id === focusId)}
           />
         )}
 

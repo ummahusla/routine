@@ -29,6 +29,9 @@ const api = {
     async readSession(sessionId: string) {
       return ipcRenderer.invoke("flowbuilder:read-session", { sessionId });
     },
+    async getFlowInfo(flowRef: string) {
+      return ipcRenderer.invoke("flowbuilder:get-flow-info", { flowRef });
+    },
   },
   session: {
     async list(): Promise<SessionMetadata[]> {

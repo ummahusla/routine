@@ -26,7 +26,6 @@
 - You describe the goal in plain English. The agent probes APIs, asks clarifying questions, builds the workflow live on the canvas.
 - Once it works end-to-end, we **compile the trace into a deterministic script**. No LLM in the execution path. Runs in seconds, near-zero cost.
 - LLM blocks only where judgment is needed — summarize, classify, generate copy.
-- Tagline: "**Like Git for workflows** — version the intelligence, share it, reuse it."
 
 ---
 
@@ -55,7 +54,6 @@
 - **n8n playbook**: free OSS desktop drives distribution, paid cloud runner monetizes.
 - Tiers: Free OSS → Cloud Starter $19/seat → Team $99/seat → Business $249/seat → Enterprise self-hosted.
 - **Structural margin advantage**: competitors pay LLM tokens forever on every run. Our flows are deterministic — COGS per run drops to near-zero after build. Higher margin ceiling than any agent-only player.
-- Target: 75%+ gross margin, 4× LTV/CAC, 120%+ NRR.
 
 ---
 
