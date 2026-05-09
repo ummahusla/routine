@@ -10,6 +10,7 @@ import { FlowCanvas } from "./components/FlowCanvas";
 import { FlowLegend } from "./components/FlowLegend";
 import { NodeInspector } from "./components/NodeInspector";
 import { PromptBox } from "./components/PromptBox";
+import { RunSidebar } from "./components/RunSidebar";
 import { useSession } from "./hooks/useSession";
 import type {
   Flow,
@@ -113,6 +114,10 @@ export function App() {
   const [, setRunStatuses] = useState<Map<string, NodeRunStatus>>(new Map());
   const [nodeStreams, setNodeStreams] = useState<Map<string, string>>(new Map());
   const [nodeErrors, setNodeErrors] = useState<Map<string, string>>(new Map());
+  const [runListTick, setRunListTick] = useState(0);
+  // selectedRunId is consumed by Task 27 (Inspector Output tab). The setter
+  // is wired now so RunSidebar clicks have somewhere to land.
+  const [, setSelectedRunId] = useState<string | null>(null);
   const [refineVal, setRefineVal] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatHeight, setChatHeight] = useState(180);
@@ -489,6 +494,7 @@ export function App() {
         off();
         void window.api.run.unwatch({ subscriptionId });
         setActiveRunId(null);
+        setRunListTick((t) => t + 1);
       }
     });
   }
@@ -674,6 +680,13 @@ export function App() {
         onSelect={handleSelect}
         onNew={handleNew}
         onRefresh={handleRefresh}
+        extras={
+          <RunSidebar
+            sessionId={selectedSessionId}
+            refreshTick={runListTick}
+            onSelect={(runId) => setSelectedRunId(runId)}
+          />
+        }
       />
 
       <main className="main">

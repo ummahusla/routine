@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
 import type { FlowbuilderSessionSummary } from "../types";
 
@@ -75,6 +75,7 @@ type SidebarProps = {
   onSelect: (id: string) => void;
   onNew: () => void;
   onRefresh: () => void;
+  extras?: ReactNode;
 };
 
 export function Sidebar({
@@ -90,6 +91,7 @@ export function Sidebar({
   onSelect,
   onNew,
   onRefresh,
+  extras,
 }: SidebarProps) {
   const [q, setQ] = useState("");
   const filtered = useMemo(
@@ -171,6 +173,8 @@ export function Sidebar({
             />
           ))}
       </div>
+
+      {extras && <div className="sb-extras">{extras}</div>}
 
       <div className="sb-foot">
         <div className="sb-user">
