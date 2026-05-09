@@ -1,5 +1,5 @@
 appId: com.flowbuild.app
-productName: FlowBuild
+productName: Routine
 directories:
   buildResources: build
 files:
@@ -11,7 +11,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: FlowBuild
+  executableName: Routine
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
