@@ -16,7 +16,7 @@ type StashedState = {
   handle: FlowbuilderMcpHandle;
 };
 
-const STATE_KEY = "flowbuilder";
+const STATE_KEY = "flowbuilder:internal";
 
 export function createFlowbuilderPlugin(opts: FlowbuilderPluginOptions): Plugin {
   if (!opts.baseDir || !opts.sessionId) {

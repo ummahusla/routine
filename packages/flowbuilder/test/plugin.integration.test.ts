@@ -61,7 +61,7 @@ describe("flowbuilder plugin lifecycle", () => {
     expect(plugin.name).toBe("flowbuilder");
 
     await plugin.preRun!(ctx);
-    expect(ctx.state.has("flowbuilder")).toBe(true);
+    expect(ctx.state.has("flowbuilder:internal")).toBe(true);
 
     const sysContrib = await plugin.systemPrompt!(ctx);
     expect(sysContrib).toBeTruthy();
