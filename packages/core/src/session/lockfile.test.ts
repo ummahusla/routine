@@ -48,6 +48,23 @@ describe("acquireLock", () => {
     releaseLock(lockPath);
     expect(existsSync(lockPath)).toBe(false);
   });
+
+  it("is reentrant for the current PID", () => {
+    const lockPath = join(dir, "session.lock");
+    acquireLock(lockPath, "sess-1");
+    expect(() => acquireLock(lockPath, "sess-1")).not.toThrow();
+    expect(readLock(lockPath)!.pid).toBe(process.pid);
+  });
+
+  it("releaseLock does not delete a lock held by another pid", () => {
+    const lockPath = join(dir, "session.lock");
+    writeFileSync(
+      lockPath,
+      JSON.stringify({ pid: process.ppid, sessionId: "x", startedAt: new Date().toISOString() }),
+    );
+    releaseLock(lockPath);
+    expect(existsSync(lockPath)).toBe(true);
+  });
 });
 
 // Reference unused import to keep plan-faithful while satisfying TS noUnusedLocals if enabled.
