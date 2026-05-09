@@ -75,6 +75,30 @@ describe("Session.send", () => {
     await first;
   });
 
+  it("reports the active persisted turn as running while send is in flight", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    let resolveStream!: () => void;
+    const blockedStream = new Promise<void>((r) => (resolveStream = r));
+    const fa = makeFakeAgent({});
+    fa.run.stream = async function* () {
+      await blockedStream;
+      yield undefined as never;
+    };
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({ baseDir: dir, sessionId: "S1", apiKey: "crsr_test" });
+    const sendPromise = session.send("hi");
+    await new Promise((r) => setTimeout(r, 10));
+
+    const turns = await session.turns();
+    expect(turns).toHaveLength(1);
+    expect(turns[0]!.status).toBe("running");
+
+    resolveStream();
+    await sendPromise;
+  });
+
   it("writes turn_end status=failed_to_start when Agent.create throws", async () => {
     initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
     installFakeSdk({ createBehavior: [{ throws: new Error("auth bad") }] });

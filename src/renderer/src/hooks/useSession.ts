@@ -12,7 +12,7 @@ type Action =
   | { type: "loaded"; metadata: SessionMetadata; turns: PersistedTurn[] }
   | { type: "event"; ev: SessionEvent }
   | { type: "error"; message: string }
-  | { type: "reset" };
+  | { type: "reset"; loading: boolean };
 
 function applyEvent(turns: PersistedTurn[], ev: SessionEvent): PersistedTurn[] {
   if (ev.type === "user") {
@@ -88,7 +88,7 @@ function reducer(state: State, action: Action): State {
     case "error":
       return { ...state, loading: false, error: action.message };
     case "reset":
-      return { turns: [], loading: true };
+      return { turns: [], loading: action.loading };
   }
 }
 
@@ -107,16 +107,22 @@ export function useSession(
   const unsubRef = useRef<(() => void) | undefined>(undefined);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      dispatch({ type: "reset", loading: false });
+      return;
+    }
     let cancelled = false;
-    dispatch({ type: "reset" });
+    dispatch({ type: "reset", loading: true });
     window.api.session
       .open(sessionId)
       .then(({ metadata, turns }) => {
         if (cancelled) return;
         dispatch({ type: "loaded", metadata, turns });
       })
-      .catch((e) => dispatch({ type: "error", message: (e as Error).message }));
+      .catch((e) => {
+        if (cancelled) return;
+        dispatch({ type: "error", message: (e as Error).message });
+      });
     unsubRef.current = window.api.session.watch(sessionId, (ev) =>
       dispatch({ type: "event", ev }),
     );

@@ -72,7 +72,7 @@ export class Session {
   private readonly retry: Required<RetryOptions>;
   private readonly plugins: Plugin[];
   private activeTurn:
-    | { abort: AbortController; runCancel?: () => Promise<void> }
+    | { turnId: string; abort: AbortController; runCancel?: () => Promise<void> }
     | undefined;
   private closed = false;
 
@@ -100,8 +100,8 @@ export class Session {
       const onAbort = (): void => abort.abort();
       opts.signal.addEventListener("abort", onAbort, { once: true });
     }
-    this.activeTurn = { abort };
     const turnId = ulid();
+    this.activeTurn = { turnId, abort };
     const startedAt = Date.now();
     const onEvent = opts.onEvent ?? ((): void => {});
 
@@ -442,7 +442,13 @@ export class Session {
   }
 
   async turns(): Promise<ReturnType<typeof reduce>> {
-    return reduce(readEvents({ baseDir: this.baseDir, sessionId: this.sessionId }));
+    const turns = reduce(readEvents({ baseDir: this.baseDir, sessionId: this.sessionId }));
+    if (!this.activeTurn) return turns;
+    return turns.map((turn) =>
+      turn.turnId === this.activeTurn?.turnId && turn.status === "interrupted"
+        ? { ...turn, status: "running" }
+        : turn,
+    );
   }
 
   async metadata(): Promise<SessionMetadata> {

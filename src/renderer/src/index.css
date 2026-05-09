@@ -167,6 +167,8 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 .ct::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 4px; border: 2px solid var(--bg); }
 .ct::-webkit-scrollbar-thumb:hover { background: var(--surface-3); }
 .ct-list { display: flex; flex-direction: column; gap: 10px; max-width: 920px; margin: 0 auto; }
+.ct-loading { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 70px; color: var(--muted); font-size: 12px; }
+.ct-spinner { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--surface-3); border-top-color: color-mix(in oklab, var(--accent) 78%, var(--accent-2)); animation: spin .9s linear infinite; }
 .ct-more { background: transparent; border: 0; color: var(--muted); font-size: 11.5px; padding: 4px; cursor: pointer; }
 .ct-more:hover { color: var(--text); }
 .msg { display: flex; gap: 10px; max-width: 920px; }
@@ -177,6 +179,8 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 .msg-body { flex: 1; min-width: 0; }
 .msg-h { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
 .msg-text { font-size: 13px; line-height: 1.5; color: var(--text); }
+.msg-text a { color: #0060df; text-decoration-color: color-mix(in oklab, #0060df 42%, transparent); text-underline-offset: 2px; transition: color .12s ease, text-decoration-color .12s ease; }
+.msg-text a:hover { color: #1a7dff; text-decoration-color: currentColor; }
 .msg-text h1, .msg-text h2, .msg-text h3 { margin: 14px 0 8px; line-height: 1.2; color: var(--text); }
 .msg-text h1:first-child, .msg-text h2:first-child, .msg-text h3:first-child { margin-top: 0; }
 .msg-text h1 { font-size: 20px; }

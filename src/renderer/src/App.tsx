@@ -108,7 +108,7 @@ export function App() {
   );
   const stopRef = useRef(false);
 
-  const { turns, send, cancel } = useSession(selectedSessionId ?? undefined, reloadKey);
+  const { turns, loading: loadingTurns, send, cancel } = useSession(selectedSessionId ?? undefined, reloadKey);
   const lastTurn = turns[turns.length - 1];
   const isRunning = lastTurn?.status === "running";
 
@@ -654,7 +654,7 @@ export function App() {
             </div>
 
             <div className="cf-bottom">
-              <ChatThread turns={turns} height={chatHeight} onResize={setChatHeight} />
+              <ChatThread turns={turns} loading={loadingTurns} height={chatHeight} onResize={setChatHeight} />
               <div className="cf-refine">
                 <PromptBox
                   value={refineVal}

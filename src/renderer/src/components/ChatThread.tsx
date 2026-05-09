@@ -7,10 +7,11 @@ import { ToolCallChip } from "./ToolCallChip";
 type ChatThreadProps = {
   turns: PersistedTurn[];
   height: number;
+  loading?: boolean;
   onResize: (height: number) => void;
 };
 
-export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
+export function ChatThread({ turns, height, loading = false, onResize }: ChatThreadProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const lastTurn = turns[turns.length - 1];
   const lastTextLen = lastTurn?.assistant.textBlocks.length ?? 0;
@@ -47,6 +48,12 @@ export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
       </div>
       <div className="ct" ref={scrollRef} style={{ height, maxHeight: "none", flex: "0 0 auto" }}>
         <div className="ct-list">
+          {loading && turns.length === 0 && (
+            <div className="ct-loading" role="status" aria-live="polite">
+              <span className="ct-spinner" aria-hidden="true" />
+              <span>Loading session details...</span>
+            </div>
+          )}
           {turns.map((turn) => (
             <div key={turn.turnId} className="msg-pair">
               <div className="msg msg-user">
