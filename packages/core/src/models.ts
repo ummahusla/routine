@@ -1,4 +1,4 @@
-import { Cursor } from "@cursor/sdk";
+import { Cursor, type SDKModel } from "@cursor/sdk";
 
 export type ModelInfo = {
   id: string;
@@ -23,23 +23,24 @@ function fallbackPricing(id: string): ModelInfo["pricing"] | undefined {
   return FALLBACK_MODELS.find((m) => m.id === id)?.pricing;
 }
 
+function curatedProvider(id: string): string {
+  return FALLBACK_MODELS.find((m) => m.id === id)?.provider ?? "Unknown";
+}
+
+/** Never throws. Resolves apiKey from opts.apiKey → process.env.CURSOR_API_KEY → falls back to FALLBACK_MODELS. */
 export async function listModels(opts: ListModelsOptions): Promise<ModelInfo[]> {
   const apiKey = opts.apiKey ?? process.env.CURSOR_API_KEY ?? "";
   if (!apiKey) return FALLBACK_MODELS;
   try {
     const raw = await Cursor.models.list({ apiKey });
     if (!Array.isArray(raw) || raw.length === 0) return FALLBACK_MODELS;
-    return raw.map((m) => {
-      const id = String((m as { id?: unknown }).id ?? "");
-      const displayName = String(
-        (m as { displayName?: unknown }).displayName ?? id,
-      );
-      const provider = String(
-        (m as { provider?: unknown }).provider ?? "Unknown",
-      );
-      const pricing =
-        (m as { pricing?: ModelInfo["pricing"] }).pricing ?? fallbackPricing(id);
-      const info: ModelInfo = { id, displayName, provider };
+    return raw.map((m: SDKModel) => {
+      const pricing = fallbackPricing(m.id);
+      const info: ModelInfo = {
+        id: m.id,
+        displayName: m.displayName,
+        provider: curatedProvider(m.id),
+      };
       if (pricing) info.pricing = pricing;
       return info;
     });

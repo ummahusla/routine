@@ -58,8 +58,8 @@ describe("listModels", () => {
       Cursor: {
         models: {
           list: vi.fn(async () => [
-            { id: "composer-2", displayName: "Composer 2", provider: "Cursor" },
-            { id: "claude-4.7-opus", displayName: "Claude 4.7 Opus", provider: "Anthropic" },
+            { id: "composer-2", displayName: "Composer 2" },
+            { id: "claude-4.7-opus", displayName: "Claude 4.7 Opus" },
           ]),
         },
       },
@@ -67,17 +67,20 @@ describe("listModels", () => {
     }));
     const { listModels } = await import(MODULE);
     const result = await listModels({ apiKey: "crsr_test" });
-    expect(result.map((m: { id: string }) => m.id)).toEqual(["composer-2", "claude-4.7-opus"]);
+    expect(result[0].id).toBe("composer-2");
     expect(result[0].displayName).toBe("Composer 2");
     expect(result[0].provider).toBe("Cursor");
+    expect(result[0].pricing).toEqual({ inputPerM: 0.5, outputPerM: 2.5 });
+    expect(result[1].id).toBe("claude-4.7-opus");
+    expect(result[1].provider).toBe("Anthropic");
   });
 
-  it("preserves curated pricing when SDK item lacks it", async () => {
+  it("preserves curated pricing AND provider when SDK item lacks them", async () => {
     vi.doMock("@cursor/sdk", () => ({
       Cursor: {
         models: {
           list: vi.fn(async () => [
-            { id: "composer-2", displayName: "Composer 2", provider: "Cursor" },
+            { id: "composer-2", displayName: "Composer 2" },
           ]),
         },
       },
@@ -86,5 +89,6 @@ describe("listModels", () => {
     const { listModels } = await import(MODULE);
     const result = await listModels({ apiKey: "crsr_test" });
     expect(result[0].pricing).toEqual({ inputPerM: 0.5, outputPerM: 2.5 });
+    expect(result[0].provider).toBe("Cursor");
   });
 });
