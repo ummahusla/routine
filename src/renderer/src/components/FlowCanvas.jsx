@@ -2,10 +2,8 @@ import { useRef, useState } from "react";
 import { NODE_W } from "../data/constants";
 import { nodePos, edgePath, CANVAS_PAD_X, CANVAS_PAD_Y } from "../utils/flow";
 import { FlowNode } from "./FlowNode";
-import { NodePalette } from "./NodePalette";
 
-export function FlowCanvas({ flow, runState, building, onFocus, onMoveNode, onDeleteNode, onAddNode }) {
-  const [paletteOpen, setPaletteOpen] = useState(false);
+export function FlowCanvas({ flow, runState, building, onFocus, onMoveNode, onDeleteNode }) {
   const [draggingId, setDraggingId] = useState(null);
   const dragRef = useRef(null);
 
@@ -55,24 +53,6 @@ export function FlowCanvas({ flow, runState, building, onFocus, onMoveNode, onDe
 
   return (
     <div className="fc-wrap">
-      <div className="fc-toolbar">
-        <button className="fc-tb-btn" onClick={() => setPaletteOpen((o) => !o)}>
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          Add step
-        </button>
-        {paletteOpen && (
-          <NodePalette
-            onPick={(spec) => {
-              setPaletteOpen(false);
-              onAddNode?.(spec);
-            }}
-            onClose={() => setPaletteOpen(false)}
-          />
-        )}
-      </div>
-
       <div className="fc-canvas" style={{ width: W, height: H }}>
         <svg className="fc-edges" width={W} height={H}>
           <defs>

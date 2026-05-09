@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { FLOW_TEMPLATES, PREVIOUS_FLOWS, SUGGESTED_PROMPTS, matchTemplate } from "./data/flowTemplates";
-import { NODE_W, GAP_X } from "./data/constants";
+import { NODE_W, NODE_H, GAP_X } from "./data/constants";
 import { cloneFlow, topoLayers, nodePos } from "./utils/flow";
 
 import { Sidebar } from "./components/Sidebar";
@@ -31,13 +31,24 @@ const TWEAK_DEFAULTS = {
 
 export function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [selectedId, setSelectedId] = useState(null);
-  const [flow, setFlow] = useState(null);
+  const [selectedId, setSelectedId] = useState("release_announce");
+  const [flow, setFlow] = useState(() => cloneFlow(FLOW_TEMPLATES.release_announce));
   const [building, setBuilding] = useState(false);
   const [running, setRunning] = useState(false);
   const [runState, setRunState] = useState({});
   const [refineVal, setRefineVal] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => [
+    { role: "user", text: "Announce a release in parallel to email, Slack, Twitter, and the blog" },
+    {
+      role: "ai",
+      text: FLOW_TEMPLATES.release_announce.summary,
+      steps: [
+        "Identified 14 steps with a 4-way fan-out and fan-in",
+        "Mapped to 6 node types in your workspace",
+        "Connectors are configured · ready to execute",
+      ],
+    },
+  ]);
   const [focusId, setFocusId] = useState(null);
   const stopRef = useRef(false);
 
@@ -106,6 +117,7 @@ export function App() {
         layer.forEach((id) => (n[id] = "running"));
         return n;
       });
+      requestAnimationFrame(() => scrollToNodes(layer));
       await new Promise((r) => setTimeout(r, 650));
       if (stopRef.current) break;
       setRunState((s) => {
@@ -116,6 +128,29 @@ export function App() {
       await new Promise((r) => setTimeout(r, 200));
     }
     setRunning(false);
+  }
+
+  // Smoothly scroll the canvas wrapper so the bounding box of the given
+  // node ids is centered (best effort — clamps to scrollable extent).
+  function scrollToNodes(ids) {
+    const wrap = document.querySelector(".cf-canvas-wrap");
+    if (!wrap || !flow) return;
+    const targets = flow.nodes.filter((n) => ids.includes(n.id));
+    if (!targets.length) return;
+    const xs = targets.map((n) => nodePos(n).x);
+    const ys = targets.map((n) => nodePos(n).y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs) + NODE_W;
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys) + NODE_H;
+    const padOuter = 16; // .fc-wrap padding
+    const cx = padOuter + (minX + maxX) / 2;
+    const cy = padOuter + (minY + maxY) / 2;
+    wrap.scrollTo({
+      left: Math.max(0, cx - wrap.clientWidth / 2),
+      top: Math.max(0, cy - wrap.clientHeight / 2),
+      behavior: "smooth",
+    });
   }
 
   function handleStop() {
@@ -136,14 +171,30 @@ export function App() {
     );
   }
 
+  // When a node is removed, bridge each of its predecessors to each of its
+  // successors so the chain isn't severed. Existing edges are deduped.
   function handleDeleteNode(id) {
-    setFlow((f) =>
-      f && {
+    setFlow((f) => {
+      if (!f) return f;
+      const preds = f.edges.filter(([, b]) => b === id).map(([a]) => a);
+      const succs = f.edges.filter(([a]) => a === id).map(([, b]) => b);
+      const remaining = f.edges.filter(([a, b]) => a !== id && b !== id);
+      const existing = new Set(remaining.map(([a, b]) => `${a}>${b}`));
+      const bridges = [];
+      for (const a of preds) {
+        for (const b of succs) {
+          if (a !== b && !existing.has(`${a}>${b}`)) {
+            bridges.push([a, b]);
+            existing.add(`${a}>${b}`);
+          }
+        }
+      }
+      return {
         ...f,
         nodes: f.nodes.filter((n) => n.id !== id),
-        edges: f.edges.filter(([a, b]) => a !== id && b !== id),
-      }
-    );
+        edges: [...remaining, ...bridges],
+      };
+    });
     setRunState((s) => {
       const n = { ...s };
       delete n[id];
@@ -184,11 +235,57 @@ export function App() {
     });
   }
 
+  // Smart chat refine: route execution / structural commands inline,
+  // otherwise treat the prompt as a flow re-mapping request.
   function handleRefine() {
     const v = refineVal.trim();
     if (!v) return;
+    const lower = v.toLowerCase();
     setMessages((m) => [...m, { role: "user", text: v }]);
     setRefineVal("");
+
+    if (/\b(run|execute|go|start|kick)\b/.test(lower) && !/stop/.test(lower)) {
+      setMessages((m) => [...m, { role: "ai", text: "Executing now — watch the canvas." }]);
+      setTimeout(() => handleRun(), 250);
+      return;
+    }
+    if (/\b(stop|cancel|halt|abort)\b/.test(lower)) {
+      handleStop();
+      setMessages((m) => [...m, { role: "ai", text: "Stopped. Nothing was rolled back." }]);
+      return;
+    }
+    if (/\b(reset|clear)\b/.test(lower)) {
+      handleReset();
+      setMessages((m) => [...m, { role: "ai", text: "Cleared the run state." }]);
+      return;
+    }
+    const addMatch = lower.match(
+      /add (?:a |an )?(slack|email|webhook|http|llm|filter|approval|database|spreadsheet|schedule|transform|code)/
+    );
+    if (addMatch) {
+      const kind = addMatch[1];
+      const map = {
+        slack:       { type: "output",    icon: "slack",    label: "Slack message",  sub: "#channel" },
+        email:       { type: "output",    icon: "mail",     label: "Send email",     sub: "smtp" },
+        webhook:     { type: "trigger",   icon: "webhook",  label: "Webhook",        sub: "POST /event" },
+        http:        { type: "http",      icon: "http",     label: "HTTP request",   sub: "GET /…" },
+        llm:         { type: "llm",       icon: "llm",      label: "LLM call",       sub: "claude-sonnet" },
+        filter:      { type: "filter",    icon: "filter",   label: "Filter",         sub: "where …" },
+        approval:    { type: "human",     icon: "user",     label: "Human approval", sub: "slack approval" },
+        database:    { type: "storage",   icon: "db",       label: "Database",       sub: "supabase · query" },
+        spreadsheet: { type: "storage",   icon: "sheet",    label: "Spreadsheet",    sub: "google sheets" },
+        schedule:    { type: "trigger",   icon: "schedule", label: "Schedule",       sub: "every day · 09:00" },
+        transform:   { type: "transform", icon: "transform",label: "Transform",      sub: "map · reduce" },
+        code:        { type: "transform", icon: "code",     label: "Code",           sub: "javascript" },
+      };
+      handleAddNode(map[kind]);
+      setMessages((m) => [
+        ...m,
+        { role: "ai", text: `Added a ${map[kind].label} step at the end. Drag it where you want it.` },
+      ]);
+      return;
+    }
+
     setBuilding(true);
     setTimeout(() => {
       const tplId = matchTemplate(v) || selectedId;
@@ -223,9 +320,7 @@ export function App() {
           runState={runState}
           building={building}
           running={running}
-          onRun={handleRun}
-          onStop={handleStop}
-          onReset={handleReset}
+          onHome={handleNew}
         />
 
         {!flow && !building && <EmptyState onSubmit={handleSubmit} suggestions={SUGGESTED_PROMPTS} />}
@@ -243,7 +338,6 @@ export function App() {
                 onFocus={setFocusId}
                 onMoveNode={handleMoveNode}
                 onDeleteNode={handleDeleteNode}
-                onAddNode={handleAddNode}
               />
               {t.showMinimap && flow && <Minimap flow={flow} />}
               <FlowLegend />
