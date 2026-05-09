@@ -57,6 +57,7 @@ function getBaseDir(): string {
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
+  process.exit(0);
 }
 
 loadLocalEnv();
