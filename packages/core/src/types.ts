@@ -17,6 +17,7 @@ export type RunOptions = {
   onEvent: (e: HarnessEvent) => void;
   logger?: Logger;
   retry?: RetryOptions;
+  plugins?: Plugin[];
 };
 
 export type HarnessEvent =
@@ -32,4 +33,42 @@ export type RunResult = {
   status: RunStatus;
   finalText: string;
   usage?: { inputTokens: number; outputTokens: number };
+};
+
+export type RuntimeContext = {
+  cwd: string;
+  model: string;
+  runId: string;
+  signal: AbortSignal;
+  logger: Logger;
+  state: Map<string, unknown>;
+};
+
+export type PreRunOutput = {
+  facts?: Record<string, unknown>;
+};
+
+export type SystemPromptContribution = {
+  rulesFile: {
+    relativePath: string;
+    contents: string;
+  };
+};
+
+export type ToolCallSnapshot = {
+  callId: string;
+  name: string;
+  status: "running" | "completed" | "error";
+  args?: unknown;
+  result?: unknown;
+};
+
+export type Plugin = {
+  name: string;
+  preRun?: (ctx: RuntimeContext) => Promise<PreRunOutput | void>;
+  systemPrompt?: (ctx: RuntimeContext) => Promise<SystemPromptContribution | void>;
+  promptPrefix?: (ctx: RuntimeContext) => Promise<string | void>;
+  interceptEvent?: (e: HarnessEvent, ctx: RuntimeContext) => HarnessEvent[] | void;
+  onToolCall?: (call: ToolCallSnapshot, ctx: RuntimeContext) => Promise<void>;
+  cleanup?: (ctx: RuntimeContext) => Promise<void>;
 };
