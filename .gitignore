@@ -7,6 +7,7 @@ out
 .eslintcache
 *.log*
 *.tsbuildinfo
+*.gen.ts
 .env
 .env.local
 polymarket-weather-markets.md

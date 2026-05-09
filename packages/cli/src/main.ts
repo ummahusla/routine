@@ -2,14 +2,13 @@ import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import {
   runPrompt,
+  defaultPlugins,
   AuthError,
   ConfigError,
   NetworkError,
   HarnessError,
 } from "@flow-build/core";
-import type { Logger, Plugin } from "@flow-build/core";
-import { createRotePlugin } from "@flow-build/rote";
-import { createFlowbuilderPlugin } from "@flow-build/flowbuilder";
+import type { Logger } from "@flow-build/core";
 import { makeRenderer } from "./render.js";
 
 type CliDeps = {
@@ -94,13 +93,10 @@ async function executeRun(
 
   const attempts = opts.retry ? opts.maxRetries : 1;
 
-  const plugins: Plugin[] = [
-    createRotePlugin({}),
-    createFlowbuilderPlugin({
-      baseDir: opts.flowbuilderBase,
-      sessionId: opts.session,
-    }),
-  ];
+  const plugins = defaultPlugins({
+    baseDir: opts.flowbuilderBase,
+    sessionId: opts.session,
+  });
 
   let result;
   try {

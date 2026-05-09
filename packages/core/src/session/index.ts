@@ -25,6 +25,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
     name: title,
     description: "",
   });
+  const plugins = opts.pluginsFactory ? opts.pluginsFactory(sessionId) : opts.plugins;
   return new Session({
     baseDir: opts.baseDir,
     sessionId,
@@ -33,7 +34,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
     ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
     ...(opts.logger ? { logger: opts.logger } : {}),
     ...(opts.retry ? { retry: opts.retry } : {}),
-    ...(opts.plugins ? { plugins: opts.plugins } : {}),
+    ...(plugins ? { plugins } : {}),
   });
 }
 

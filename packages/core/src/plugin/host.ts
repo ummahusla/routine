@@ -168,6 +168,9 @@ export class PluginHost {
         });
       }
     }
+  }
+
+  async endSession(ctx: RuntimeContext): Promise<void> {
     while (this.written.length > 0) {
       const w = this.written.pop()!;
       try {

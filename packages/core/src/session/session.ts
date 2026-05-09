@@ -71,6 +71,8 @@ export class Session {
   private readonly logger: Logger;
   private readonly retry: Required<RetryOptions>;
   private readonly plugins: Plugin[];
+  private readonly host: PluginHost;
+  private systemPromptApplied = false;
   private activeTurn:
     | { abort: AbortController; runCancel?: () => Promise<void> }
     | undefined;
@@ -90,6 +92,7 @@ export class Session {
       baseDelayMs: opts.retry?.baseDelayMs ?? 200,
     };
     this.plugins = opts.plugins ?? [];
+    this.host = new PluginHost(this.plugins);
     acquireLock(lockPath(opts.baseDir, opts.sessionId), opts.sessionId);
   }
 
@@ -127,7 +130,7 @@ export class Session {
     let midStreamError: HarnessError | undefined;
     let waitFailureMessage: string | undefined;
 
-    const host = new PluginHost(this.plugins);
+    const host = this.host;
     const ctx: RuntimeContext = {
       cwd: this.workspaceDir,
       model: this.model,
@@ -187,7 +190,13 @@ export class Session {
     try {
       // Per-turn plugin lifecycle.
       await host.runPreRun(ctx);
-      await host.runSystemPrompt(ctx);
+      // System-prompt contributions (rules files) fire once per session, on
+      // first send. The written files persist across turns and are restored
+      // when Session.close() runs host.endSession().
+      if (!this.systemPromptApplied) {
+        await host.runSystemPrompt(ctx);
+        this.systemPromptApplied = true;
+      }
       const pluginPrefix = await host.runPromptPrefix(ctx);
       const mcpServers = await host.runProvideMcpServers(ctx);
 
@@ -461,6 +470,19 @@ export class Session {
     this.closed = true;
     try {
       if (this.activeTurn) await this.cancel();
+      const endCtx: RuntimeContext = {
+        cwd: this.workspaceDir,
+        model: this.model,
+        runId: this.sessionId,
+        signal: new AbortController().signal,
+        logger: this.logger,
+        state: new Map(),
+      };
+      try {
+        await this.host.endSession(endCtx);
+      } catch (e) {
+        this.logger.warn("plugin endSession threw", { cause: String(e) });
+      }
     } finally {
       releaseLock(lockPath(this.baseDir, this.sessionId));
     }

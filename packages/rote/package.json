@@ -11,8 +11,12 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "SKILL.md"],
   "scripts": {
+    "gen": "node scripts/gen-skill.mjs",
+    "prebuild": "node scripts/gen-skill.mjs",
+    "pretypecheck": "node scripts/gen-skill.mjs",
+    "pretest": "node scripts/gen-skill.mjs",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",

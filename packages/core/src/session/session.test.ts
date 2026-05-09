@@ -129,6 +129,72 @@ describe("Session.send", () => {
     expect(lastSent).toContain("User: second prompt");
   });
 
+  it("plugin systemPrompt fires once per session; preRun + promptPrefix fire per turn; rules file persists between turns and is restored on close", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    const fa1 = makeFakeAgent({
+      streamItems: [
+        { type: "assistant", message: { content: [{ type: "text", text: "ok1" }] } },
+      ],
+      waitResult: { status: "completed" },
+    });
+    const fa2 = makeFakeAgent({
+      streamItems: [
+        { type: "assistant", message: { content: [{ type: "text", text: "ok2" }] } },
+      ],
+      waitResult: { status: "completed" },
+    });
+    installFakeSdk({ createBehavior: [{ agent: fa1 }, { agent: fa2 }] });
+
+    const { existsSync, readFileSync: rfs } = await import("node:fs");
+    const { join: pj } = await import("node:path");
+
+    const calls = { preRun: 0, systemPrompt: 0, promptPrefix: 0 };
+    const plugin = {
+      name: "test-plugin",
+      async preRun() {
+        calls.preRun += 1;
+      },
+      async systemPrompt() {
+        calls.systemPrompt += 1;
+        return {
+          rulesFile: {
+            relativePath: ".cursor/rules/.flow-build-test.mdc",
+            contents: "rules-body",
+          },
+        };
+      },
+      async promptPrefix() {
+        calls.promptPrefix += 1;
+        return "prefix";
+      },
+    };
+
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({
+      baseDir: dir,
+      sessionId: "S1",
+      apiKey: "crsr_test",
+      plugins: [plugin],
+    });
+    const rulesPath = pj(session.workspaceDir, ".cursor/rules/.flow-build-test.mdc");
+
+    await session.send("first");
+    expect(calls.preRun).toBe(1);
+    expect(calls.systemPrompt).toBe(1);
+    expect(calls.promptPrefix).toBe(1);
+    expect(existsSync(rulesPath)).toBe(true);
+    expect(rfs(rulesPath, "utf8")).toBe("rules-body");
+
+    await session.send("second");
+    expect(calls.preRun).toBe(2);
+    expect(calls.systemPrompt).toBe(1); // still 1 — once per session
+    expect(calls.promptPrefix).toBe(2);
+    expect(existsSync(rulesPath)).toBe(true); // persists across turns
+
+    await session.close();
+    expect(existsSync(rulesPath)).toBe(false); // restored on close
+  });
+
   it("cancel mid-turn produces status=cancelled", async () => {
     initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
     let resolveStream!: () => void;

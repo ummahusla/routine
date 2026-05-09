@@ -60,6 +60,7 @@ describe("CLI smoke", () => {
       ConfigError: class ConfigError extends Error {},
       NetworkError: class NetworkError extends Error {},
       HarnessError: class HarnessError extends Error {},
+      defaultPlugins: () => [],
     });
     const streams = fakeStreams();
     const ex = exitFake();
@@ -91,6 +92,7 @@ describe("CLI smoke", () => {
       ConfigError: class extends Error {},
       NetworkError: class extends Error {},
       HarnessError: class extends Error {},
+      defaultPlugins: () => [],
     });
     const streams = fakeStreams();
     const ex = exitFake();
@@ -120,6 +122,7 @@ describe("CLI smoke", () => {
       ConfigError: class extends Error {},
       NetworkError,
       HarnessError: class extends Error {},
+      defaultPlugins: () => [],
     });
     const streams = fakeStreams();
     const ex = exitFake();
@@ -144,6 +147,7 @@ describe("CLI smoke", () => {
       ConfigError: class extends Error {},
       NetworkError: class extends Error {},
       HarnessError: class extends Error {},
+      defaultPlugins: () => [],
     });
     const streams = fakeStreams();
     const ex = exitFake();

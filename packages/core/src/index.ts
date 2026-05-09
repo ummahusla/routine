@@ -43,3 +43,5 @@ export {
   SessionCorruptError,
   SessionLockedError,
 } from "./session/errors.js";
+export { defaultPlugins } from "./default-plugins.js";
+export type { DefaultPluginsOptions } from "./default-plugins.js";

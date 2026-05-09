@@ -4,6 +4,7 @@ import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import {
   createSession,
+  defaultPlugins,
   listSessions,
   loadSession,
   deleteSession,
@@ -77,7 +78,12 @@ process.on("unhandledRejection", (reason) => {
 });
 
 const registry = new SessionRegistry<Session>({
-  openSession: (sessionId) => loadSession({ baseDir: getBaseDir(), sessionId }),
+  openSession: (sessionId) =>
+    loadSession({
+      baseDir: getBaseDir(),
+      sessionId,
+      plugins: defaultPlugins({ baseDir: getBaseDir(), sessionId }),
+    }),
 });
 
 function createWindow(): void {
@@ -122,7 +128,12 @@ app.whenReady().then(() => {
   registerSessionIpc(ipcMain, {
     baseDir: getBaseDir(),
     registry,
-    createSession: (opts) => createSession(opts),
+    createSession: (opts) =>
+      createSession({
+        ...opts,
+        pluginsFactory: (sessionId) =>
+          defaultPlugins({ baseDir: opts.baseDir, sessionId }),
+      }),
     listSessions: (opts) => listSessions(opts),
     deleteSession: (opts) => deleteSession(opts),
   });

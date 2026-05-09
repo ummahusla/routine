@@ -76,6 +76,12 @@ export type CreateSessionOptions = {
   logger?: Logger;
   retry?: RetryOptions;
   plugins?: Plugin[];
+  /**
+   * Build plugins after the new sessionId is allocated. Lets plugins like
+   * flowbuilder bind to the freshly-created session. If both this and
+   * `plugins` are provided, `pluginsFactory` wins.
+   */
+  pluginsFactory?: (sessionId: string) => Plugin[];
 };
 
 export type LoadSessionOptions = {
