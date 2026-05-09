@@ -437,3 +437,29 @@ body.is-panning, body.is-panning * { cursor: grabbing !important; }
   .msg-user .msg-bub { max-width: 85%; }
   .ins { width: calc(100vw - 70px); }
 }
+.fc-llm-prompt {
+  width: 100%;
+  font-family: inherit;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 4px;
+  resize: none;
+}
+.fc-llm-stream {
+  margin-top: 6px;
+  padding: 4px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.fc-llm-error {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #fca5a5;
+}
