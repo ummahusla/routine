@@ -307,12 +307,16 @@ There is no opt-out env var; tests must always set up a session.
 
 ## Out Of Scope
 
-- UI rendering of state.json.
+- UI rendering of `state.json`.
 - IPC channel between Electron main and renderer.
-- File-watch strategy in the renderer.
-- Multi-process locking.
-- State migrations across `schemaVersion` bumps.
-- Runtime execution semantics — how the agent actually walks the graph.
-- Output parsing / `$ref` resolution between nodes.
+- File-watch strategy in the renderer (chokidar config, debounce specifics).
+- Multi-process locking. Contract is one agent per session.
+- Power-loss durability of atomic writes.
+- State migrations across `schemaVersion` bumps. v1 only; mismatch is a hard error.
+- Runtime execution semantics — how the agent actually walks the graph end-to-end at the user's request.
+- Output passing / `$ref` resolution between nodes. The agent maps upstream output to downstream params at runtime; no formal wiring schema in the file.
+- Process model decision — one long-lived agent vs one process per turn. Electron's call, not the harness's.
+- Session lifecycle on the Electron side — `createSession` IPC, subprocess spawn, kill, cleanup.
+- Listing or picking sessions in the UI. No `list_sessions` tool; the agent always operates in a single, pre-bound session.
 
 These each get their own spec when needed.
