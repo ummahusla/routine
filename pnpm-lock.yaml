@@ -127,6 +127,9 @@ importers:
       '@flow-build/rote':
         specifier: workspace:*
         version: link:../rote
+      '@flow-build/safe-shell-mcp':
+        specifier: workspace:*
+        version: link:../safe-shell-mcp
 
   packages/engine:
     dependencies:

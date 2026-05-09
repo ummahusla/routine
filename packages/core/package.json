@@ -21,6 +21,7 @@
   "dependencies": {
     "@cursor/sdk": "^1.0.0",
     "@flow-build/flowbuilder": "workspace:*",
-    "@flow-build/rote": "workspace:*"
+    "@flow-build/rote": "workspace:*",
+    "@flow-build/safe-shell-mcp": "workspace:*"
   }
 }
