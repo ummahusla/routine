@@ -172,3 +172,54 @@ describe("runPrompt retry behavior", () => {
     expect(fake.create).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("runPrompt cancellation", () => {
+  it("aborts the stream and returns cancelled status", async () => {
+    let resolveStreamGate!: () => void;
+    const gate = new Promise<void>((r) => {
+      resolveStreamGate = r;
+    });
+
+    const ctl = new AbortController();
+    const cancel = vi.fn(async () => {});
+    const close = vi.fn(async () => {});
+    const wait = vi.fn(async () => ({ status: "cancelled" }));
+
+    async function* stream() {
+      yield { type: "assistant", message: { content: [{ type: "text", text: "first" }] } };
+      await gate;
+      yield { type: "assistant", message: { content: [{ type: "text", text: "should-not-emit" }] } };
+    }
+
+    vi.doMock("@cursor/sdk", () => ({
+      Agent: {
+        create: vi.fn(async () => ({
+          agentId: "a",
+          close,
+          [Symbol.asyncDispose]: close,
+          send: vi.fn(async () => ({ cancel, wait, stream })),
+        })),
+      },
+    }));
+
+    const { runPrompt } = await import(RUN_PATH);
+    const events: HarnessEvent[] = [];
+    const promise = runPrompt({
+      prompt: "hi",
+      cwd: dir,
+      signal: ctl.signal,
+      onEvent: (e) => events.push(e),
+    });
+
+    await new Promise((r) => setImmediate(r));
+    ctl.abort();
+    resolveStreamGate();
+    const result = await promise;
+
+    expect(result.status).toBe("cancelled");
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(events.some((e) => e.type === "text" && e.delta === "first")).toBe(true);
+    expect(events.some((e) => e.type === "text" && e.delta === "should-not-emit")).toBe(false);
+    expect(close).toHaveBeenCalled();
+  });
+});
