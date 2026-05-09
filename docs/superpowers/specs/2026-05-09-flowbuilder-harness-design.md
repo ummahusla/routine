@@ -21,20 +21,28 @@ Let an agent build and edit a flow graph that the Electron app renders. The agen
 
 A new package `@flow-build/flowbuilder` plugs into the existing harness plugin system (`packages/core/src/plugin/*`). It composes with the existing `@flow-build/rote` plugin: rote drives flow discovery and creation via its skill; flowbuilder owns session state on disk.
 
+The Cursor SDK only accepts custom tools via MCP servers (`Agent.create({ mcpServers })`). Flowbuilder ships an in-process HTTP MCP server bound to `127.0.0.1:<random-port>`. The plugin starts it in `preRun`, contributes the URL via a new `provideMcpServers` hook, and shuts it down in `cleanup`. Subprocess MCP is not used — same Node runtime, no IPC overhead.
+
+This requires extending the harness plugin contract:
+
+- **`packages/core/src/types.ts`**: add `provideMcpServers?(ctx): Promise<Record<string, McpServerConfig>>` to `Plugin`. Re-export `McpServerConfig` from `@cursor/sdk`.
+- **`packages/core/src/plugin/host.ts`**: add `runProvideMcpServers(ctx): Promise<Record<string, McpServerConfig>>` that merges contributions across plugins (last-write wins on key collision; warn on collision).
+- **`packages/core/src/run.ts`**: call `host.runProvideMcpServers(ctx)` after `runPromptPrefix`, pass result into `Agent.create({ mcpServers })`.
+
 ```
 packages/flowbuilder/
   src/
     index.ts          # createFlowbuilderPlugin({ baseDir, sessionId }): Plugin
     session.ts        # SessionManager: paths, atomic IO
     schema.ts         # Zod schemas: Manifest, State, Node, Edge
-    tools.ts          # set_state, get_state tool definitions
+    mcp-server.ts     # In-process HTTP MCP server: registers get_state, set_state
     prompt.ts         # promptPrefix renderer
     rules.ts          # writes .cursor/rules/.flow-build-flowbuilder.mdc
     errors.ts         # typed FlowbuilderError hierarchy
   test/
     schema.test.ts
     session.test.ts
-    tools.test.ts
+    mcp-server.test.ts
     plugin.integration.test.ts
   package.json
   tsconfig.json
@@ -60,17 +68,36 @@ flow-build CLI
   registers plugins: rote, flowbuilder({ baseDir, sessionId })
         │
         ▼
-Cursor SDK agent
-  - reads rote skill, flowbuilder rules
-  - reads current state via flowbuilder_get_state
-  - calls rote CLI to find/create flows
-  - emits new full state via flowbuilder_set_state
+flowbuilder plugin (preRun)
+  - validate session dir + files
+  - start in-proc HTTP MCP server on 127.0.0.1:<random-port>
+  - register tools: flowbuilder_get_state, flowbuilder_set_state
         │
         ▼
-flowbuilder plugin
+flowbuilder plugin (provideMcpServers)
+  - return { flowbuilder: { type: "http", url: "http://127.0.0.1:PORT/mcp" } }
+        │
+        ▼
+core runPrompt
+  - merge mcpServers across plugins
+  - Agent.create({ ..., mcpServers })
+        │
+        ▼
+Cursor SDK agent
+  - reads rote skill, flowbuilder rules
+  - reads current state via flowbuilder_get_state (MCP)
+  - calls rote CLI to find/create flows
+  - emits new full state via flowbuilder_set_state (MCP)
+        │
+        ▼
+flowbuilder MCP server (in-proc)
   - validate (Zod + referential integrity)
-  - tmp write + rename
+  - tmp write + rename to state.json
   - bump manifest.updatedAt
+        │
+        ▼
+flowbuilder plugin (cleanup)
+  - shut down HTTP MCP server
 ```
 
 ### Disk Layout
@@ -177,14 +204,14 @@ Referential integrity (validated on write, not encoded in Zod alone):
 - Every `node.id` is unique.
 - Every `edge.from` and `edge.to` matches some `node.id`.
 
-## Custom Tools
+## MCP Server & Tools
 
-Both tools close over `sessionId` at plugin instantiation. Session id is **not** a tool parameter.
+The plugin runs an in-process HTTP MCP server (`@modelcontextprotocol/sdk`) bound to `127.0.0.1:0` (kernel-assigned port). The server registers two tools that close over the session's `SessionManager`. Session id is **not** a tool parameter — the MCP server is bound to one session for the run's lifetime.
 
 ### `flowbuilder_get_state`
 
 - **Input**: `{}`
-- **Output**: `{ ok: true, state: State }` or `{ ok: false, error: string }`
+- **Output** (MCP `content`): JSON text block with `{ ok: true, state: State }` or `{ ok: false, error: string }`
 - **Errors**: `invalid_schema: <zod-path>: <message>`, `io: <message>`
 
 ### `flowbuilder_set_state`
@@ -198,20 +225,33 @@ Both tools close over `sessionId` at plugin instantiation. Session id is **not**
 - **Output**: `{ ok: true, bytes: number, updatedAt: string }`
 - **Errors**: `validation: <zod-path>: <message>`, `ref_integrity: <message>`, `io: <message>`
 
-Tool definitions register with the Cursor SDK with JSON Schema generated from Zod. Tool names follow the existing rote convention (`<adapter>_<verb>`).
+Tool input schemas come from the `StateSchema` Zod definition. The MCP SDK accepts JSON Schema for `inputSchema`; conversion via `zod-to-json-schema`. Tool names follow the existing rote convention (`<adapter>_<verb>`).
+
+### Server lifecycle
+
+- **Start** (`preRun`): bind to `127.0.0.1:0`, register the two tool handlers, capture actual port. Stash server handle in `ctx.state.set("flowbuilder", { ..., server, port })`.
+- **Contribute** (`provideMcpServers`): return `{ flowbuilder: { type: "http", url: "http://127.0.0.1:<port>/mcp" } }`.
+- **Stop** (`cleanup`): close server. Idempotent.
+
+### Server hardening
+
+- Bind only to `127.0.0.1` — never `0.0.0.0`.
+- Reject any request whose `Host` header is not `127.0.0.1:<port>`.
+- No auth in v1: localhost-only + per-run port + same-process spawn is the trust boundary. Document the assumption.
 
 ## Plugin Hooks
 
 `createFlowbuilderPlugin({ baseDir, sessionId })`. Both arguments are required; the TypeScript signature rejects undefined. There is no fallback path for a missing session.
 
-| Hook             | Behavior                                                     |
-| ---------------- | ------------------------------------------------------------ |
-| `preRun`         | Resolve `<baseDir>/sessions/<sessionId>/`. Stat manifest + state. Missing → `FlowbuilderSessionMissingError`. Parse + validate both. Stash `{ sessionId, sessionDir, manifest, state }` in `ctx.state.set("flowbuilder", ...)`. |
-| `systemPrompt`   | Write `.cursor/rules/.flow-build-flowbuilder.mdc`: schema reference, two-tool contract, "session is fixed for this run", "always emit FULL state via set_state — never partial". |
-| `promptPrefix`   | Render the active-session digest (see below).                |
-| `interceptEvent` | Pass-through.                                                |
-| `onToolCall`     | Log writes via `ctx.logger`.                                 |
-| `cleanup`        | Nothing — session files persist across runs by design.       |
+| Hook                | Behavior                                                  |
+| ------------------- | --------------------------------------------------------- |
+| `preRun`            | Resolve `<baseDir>/sessions/<sessionId>/`. Stat manifest + state. Missing → `FlowbuilderSessionMissingError`. Parse + validate both. Start in-process HTTP MCP server bound to `127.0.0.1:0`. Stash `{ sessionId, sessionDir, manifest, state, server, port }` in `ctx.state.set("flowbuilder", ...)`. |
+| `systemPrompt`      | Write `.cursor/rules/.flow-build-flowbuilder.mdc`: schema reference, two-tool contract, "session is fixed for this run", "always emit FULL state via set_state — never partial". |
+| `promptPrefix`      | Render the active-session digest (see below).             |
+| `provideMcpServers` | Return `{ flowbuilder: { type: "http", url: "http://127.0.0.1:<port>/mcp" } }` using the port captured in `preRun`. |
+| `interceptEvent`    | Pass-through.                                             |
+| `onToolCall`        | Log MCP writes via `ctx.logger`.                          |
+| `cleanup`           | Close the HTTP MCP server. Idempotent. Session files persist by design. |
 
 `promptPrefix` output:
 
@@ -273,6 +313,7 @@ All extend `FlowbuilderError`. Every error includes `sessionId` and the absolute
 | `FlowbuilderRefIntegrityError`     | set_state              | Tool error returned to agent.            |
 | `FlowbuilderIOError`               | any                    | Wraps fs failures with cause.            |
 | `FlowbuilderUnsupportedVersion`    | preRun                 | Hard error.                              |
+| `FlowbuilderMcpStartError`         | preRun                 | Hard error. Wraps `EADDRINUSE`, etc.     |
 
 Tool errors are returned as `{ ok: false, error: "<code>: <detail>" }` so the agent can act on them. Plugin errors thrown from `preRun` propagate up and abort the run.
 
@@ -284,13 +325,13 @@ Test runner: existing `vitest` setup mirrored from `packages/rote`. All tests us
 
 - `schema.test.ts`: accept fixtures for each node type; reject malformed inputs with the expected Zod path.
 - `session.test.ts`: `SessionManager` round-trip, atomic write under tmpdir, missing-session throw, manifest `updatedAt` bump.
-- `tools.test.ts`: each tool's success path + each error path. Assert disk state after `set_state`.
+- `mcp-server.test.ts`: start server on tmpdir session, hit it as an MCP HTTP client, exercise both tools' success + error paths. Assert disk state after `set_state`. Confirm server closes cleanly.
 
 ### Integration — `packages/flowbuilder/test/plugin.integration.test.ts`
 
-- Spin up the plugin against a tmpdir.
-- Simulate `preRun` → tool calls → final state.
-- Assert manifest and state on disk after the simulated run.
+- Spin up the full plugin against a tmpdir.
+- Run through `preRun` → `provideMcpServers` → simulated tool calls via MCP client → `cleanup`.
+- Assert: server bound to a port, returned config matches, manifest and state on disk reflect tool calls, server is closed after `cleanup`.
 
 ### Existing tests
 
@@ -303,7 +344,8 @@ There is no opt-out env var; tests must always set up a session.
 
 - `nanoid` — id generation. Owned by the Electron main process at session-create time. `packages/flowbuilder` does not depend on it at runtime; tests use it as a dev dep for fixture session ids.
 - `zod` (already a workspace dep) — schema validation.
-- `zod-to-json-schema` (new) — converts Zod schemas to JSON Schema for the Cursor SDK tool definitions.
+- `zod-to-json-schema` (new) — converts Zod schemas to JSON Schema for MCP tool `inputSchema`.
+- `@modelcontextprotocol/sdk` (new) — MCP server with HTTP transport for in-process tool exposure.
 
 ## Out Of Scope
 
