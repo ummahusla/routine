@@ -3,7 +3,13 @@ import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  main: {},
+  main: {
+    resolve: {
+      alias: {
+        '@flow-build/flowbuilder': resolve('packages/flowbuilder/src/schema.ts')
+      }
+    }
+  },
   preload: {},
   renderer: {
     resolve: {

@@ -8,49 +8,55 @@ export const ManifestSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
+
 export type Manifest = z.infer<typeof ManifestSchema>;
 
-const InputNode = z.object({
+const BaseNodeSchema = z.object({
   id: z.string().min(1),
+});
+
+export const InputNodeSchema = BaseNodeSchema.extend({
   type: z.literal("input"),
   value: z.unknown(),
 });
-const OutputNode = z.object({
-  id: z.string().min(1),
+
+export const OutputNodeSchema = BaseNodeSchema.extend({
   type: z.literal("output"),
   value: z.unknown(),
 });
-const FlowNode = z.object({
-  id: z.string().min(1),
+
+export const FlowNodeSchema = BaseNodeSchema.extend({
   type: z.literal("flow"),
   flow: z.string().regex(/^[^/\s]+\/[^/\s]+$/, {
     message: "flow ref must be '<category>/<name>'",
   }),
   params: z.record(z.unknown()),
 });
-const BranchNode = z.object({
-  id: z.string().min(1),
+
+export const BranchNodeSchema = BaseNodeSchema.extend({
   type: z.literal("branch"),
   cond: z.string().min(1),
 });
-const MergeNode = z.object({
-  id: z.string().min(1),
+
+export const MergeNodeSchema = BaseNodeSchema.extend({
   type: z.literal("merge"),
 });
 
 export const NodeSchema = z.discriminatedUnion("type", [
-  InputNode,
-  OutputNode,
-  FlowNode,
-  BranchNode,
-  MergeNode,
+  InputNodeSchema,
+  OutputNodeSchema,
+  FlowNodeSchema,
+  BranchNodeSchema,
+  MergeNodeSchema,
 ]);
+
 export type Node = z.infer<typeof NodeSchema>;
 
 export const EdgeSchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
 });
+
 export type Edge = z.infer<typeof EdgeSchema>;
 
 export const StateSchema = z.object({
@@ -58,22 +64,24 @@ export const StateSchema = z.object({
   nodes: z.array(NodeSchema),
   edges: z.array(EdgeSchema),
 });
+
 export type State = z.infer<typeof StateSchema>;
 
 export function validateRefIntegrity(state: State): void {
-  const seen = new Set<string>();
-  for (const n of state.nodes) {
-    if (seen.has(n.id)) {
-      throw new Error(`duplicate node id: ${n.id}`);
+  const ids = new Set<string>();
+  for (const node of state.nodes) {
+    if (ids.has(node.id)) {
+      throw new Error(`duplicate node id: ${node.id}`);
     }
-    seen.add(n.id);
+    ids.add(node.id);
   }
-  for (const e of state.edges) {
-    if (!seen.has(e.from)) {
-      throw new Error(`edge.from references unknown node: ${e.from}`);
+
+  for (const edge of state.edges) {
+    if (!ids.has(edge.from)) {
+      throw new Error(`edge.from references unknown node: ${edge.from}`);
     }
-    if (!seen.has(e.to)) {
-      throw new Error(`edge.to references unknown node: ${e.to}`);
+    if (!ids.has(edge.to)) {
+      throw new Error(`edge.to references unknown node: ${edge.to}`);
     }
   }
 }

@@ -25,6 +25,88 @@ type CursorChatResult =
       error: string;
     };
 
+type FlowbuilderNode =
+  | {
+      id: string;
+      type: "input";
+      value: unknown;
+    }
+  | {
+      id: string;
+      type: "output";
+      value: unknown;
+    }
+  | {
+      id: string;
+      type: "flow";
+      flow: string;
+      params: Record<string, unknown>;
+    }
+  | {
+      id: string;
+      type: "branch";
+      cond: string;
+    }
+  | {
+      id: string;
+      type: "merge";
+    };
+
+type FlowbuilderEdge = {
+  from: string;
+  to: string;
+};
+
+type FlowbuilderManifest = {
+  schemaVersion: 1;
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type FlowbuilderState = {
+  schemaVersion: 1;
+  nodes: FlowbuilderNode[];
+  edges: FlowbuilderEdge[];
+};
+
+type FlowbuilderSessionSummary = {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  nodeCount: number;
+};
+
+type FlowbuilderListSessionsResult =
+  | {
+      ok: true;
+      baseDir: string;
+      sessions: FlowbuilderSessionSummary[];
+    }
+  | {
+      ok: false;
+      baseDir: string;
+      error: string;
+    };
+
+type FlowbuilderReadSessionResult =
+  | {
+      ok: true;
+      baseDir: string;
+      manifest: FlowbuilderManifest;
+      state: FlowbuilderState;
+    }
+  | {
+      ok: false;
+      baseDir: string;
+      sessionId: string;
+      error: string;
+    };
+
 const api = {
   cursorChat: {
     send(prompt: string, onEvent: (event: CursorChatEvent) => void): Promise<CursorChatResult> {
@@ -47,6 +129,14 @@ const api = {
       return (ipcRenderer.invoke("cursor-chat:send", { requestId, prompt }) as Promise<CursorChatResult>).finally(() => {
         ipcRenderer.removeListener("cursor-chat:event", listener);
       });
+    },
+  },
+  flowbuilder: {
+    listSessions(): Promise<FlowbuilderListSessionsResult> {
+      return ipcRenderer.invoke("flowbuilder:list-sessions") as Promise<FlowbuilderListSessionsResult>;
+    },
+    readSession(sessionId: string): Promise<FlowbuilderReadSessionResult> {
+      return ipcRenderer.invoke("flowbuilder:read-session", { sessionId }) as Promise<FlowbuilderReadSessionResult>;
     },
   },
 };
