@@ -1,0 +1,23 @@
+{
+  "name": "flow-build",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": { "flow-build": "./dist/main.js" },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@flow-build/core": "workspace:*",
+    "commander": "^12.0.0",
+    "picocolors": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0"
+  }
+}
