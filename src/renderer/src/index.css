@@ -1016,6 +1016,13 @@ kbd {
   display: flex;
   flex-direction: column;
 }
+.mp-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.mp-menu::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
+}
 .mp-row {
   display: flex;
   align-items: center;
