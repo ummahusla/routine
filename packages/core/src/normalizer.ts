@@ -8,13 +8,18 @@ function get<T = unknown>(obj: unknown, key: string): T | undefined {
 }
 
 function mapPhase(status: unknown): HarnessEvent & { type: "status" } {
-  switch (status) {
+  const s = typeof status === "string" ? status.toLowerCase() : status;
+  switch (s) {
     case "starting":
     case "queued":
+    case "creating":
       return { type: "status", phase: "starting" };
     case "completed":
     case "succeeded":
     case "done":
+    case "finished":
+    case "expired":
+    case "error":
       return { type: "status", phase: "done" };
     default:
       return { type: "status", phase: "running" };

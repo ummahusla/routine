@@ -187,3 +187,41 @@ describe("normalize defensive parsing", () => {
     expect(normalize({ type: "wat" })).toEqual([]);
   });
 });
+
+describe("normalize SDK uppercase status values", () => {
+  it("status CREATING → starting", () => {
+    expect(normalize({ type: "status", status: "CREATING" }, mkLogger())).toEqual([
+      { type: "status", phase: "starting" },
+    ]);
+  });
+
+  it("status RUNNING → running", () => {
+    expect(normalize({ type: "status", status: "RUNNING" }, mkLogger())).toEqual([
+      { type: "status", phase: "running" },
+    ]);
+  });
+
+  it("status FINISHED → done", () => {
+    expect(normalize({ type: "status", status: "FINISHED" }, mkLogger())).toEqual([
+      { type: "status", phase: "done" },
+    ]);
+  });
+
+  it("status ERROR → done", () => {
+    expect(normalize({ type: "status", status: "ERROR" }, mkLogger())).toEqual([
+      { type: "status", phase: "done" },
+    ]);
+  });
+
+  it("status CANCELLED falls through to running (not a known terminal phase)", () => {
+    expect(normalize({ type: "status", status: "CANCELLED" }, mkLogger())).toEqual([
+      { type: "status", phase: "running" },
+    ]);
+  });
+
+  it("status EXPIRED → done", () => {
+    expect(normalize({ type: "status", status: "EXPIRED" }, mkLogger())).toEqual([
+      { type: "status", phase: "done" },
+    ]);
+  });
+});

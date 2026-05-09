@@ -223,3 +223,42 @@ describe("runPrompt cancellation", () => {
     expect(close).toHaveBeenCalled();
   });
 });
+
+describe("runPrompt wait() terminal status mapping", () => {
+  it("wait status 'finished' → completed (real SDK contract)", async () => {
+    const fa = makeFakeAgent({
+      streamItems: [{ type: "assistant", message: { content: [{ type: "text", text: "ok" }] } }],
+      waitResult: { status: "finished" },
+    });
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { runPrompt } = await import(RUN_PATH);
+    const result = await runPrompt({ prompt: "hi", cwd: dir, onEvent: () => {} });
+    expect(result.status).toBe("completed");
+    expect(result.finalText).toBe("ok");
+  });
+
+  it("wait status 'error' → failed", async () => {
+    const fa = makeFakeAgent({
+      streamItems: [{ type: "assistant", message: { content: [{ type: "text", text: "x" }] } }],
+      waitResult: { status: "error" },
+    });
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { runPrompt } = await import(RUN_PATH);
+    const result = await runPrompt({ prompt: "hi", cwd: dir, onEvent: () => {} });
+    expect(result.status).toBe("failed");
+  });
+
+  it("wait status 'CANCELLED' (uppercase) → cancelled", async () => {
+    const fa = makeFakeAgent({
+      streamItems: [],
+      waitResult: { status: "CANCELLED" },
+    });
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { runPrompt } = await import(RUN_PATH);
+    const result = await runPrompt({ prompt: "hi", cwd: dir, onEvent: () => {} });
+    expect(result.status).toBe("cancelled");
+  });
+});
