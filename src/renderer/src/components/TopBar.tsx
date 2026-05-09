@@ -44,7 +44,7 @@ export function TopBar({ flow, onHome, onTidy, onPlay, canRun, running }: TopBar
           {running ? "Running…" : "▶ Play"}
         </button>
         {flow && (
-          <button className="tb-action" onClick={onTidy} title="Auto-arrange the canvas">
+          <button className="tb-btn tb-action" onClick={onTidy} title="Auto-arrange the canvas">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">
               <rect x="3" y="4" width="6" height="6" rx="1.2" />
               <rect x="15" y="4" width="6" height="6" rx="1.2" />
