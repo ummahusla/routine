@@ -18,7 +18,7 @@ export default defineConfig({
         '@flow-build/core': resolve('packages/core/src/index.ts')
       }
     },
-    plugins: [externalizeDepsPlugin({ exclude: ['@flow-build/core'] })]
+    plugins: [externalizeDepsPlugin({ exclude: ['@flow-build/core', '@electron-toolkit/preload'] })]
   },
   renderer: {
     resolve: {
