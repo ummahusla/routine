@@ -1,18 +1,26 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 
-export function PromptBox({ value, onChange, onSubmit, large, placeholder }) {
-  const ref = useRef(null);
+type PromptBoxProps = {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  large?: boolean;
+  placeholder?: string;
+};
+
+export function PromptBox({ value, onChange, onSubmit, large, placeholder }: PromptBoxProps) {
+  const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const ta = ref.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+    const textarea = ref.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
   }, [value]);
 
-  function onKey(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+  function onKey(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       onSubmit();
     }
   }
@@ -23,7 +31,7 @@ export function PromptBox({ value, onChange, onSubmit, large, placeholder }) {
         ref={ref}
         rows={1}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKey}
         placeholder={placeholder || "Describe a flow… e.g. 'Triage Zendesk tickets and route urgent ones to Slack'"}
       />
@@ -53,11 +61,7 @@ export function PromptBox({ value, onChange, onSubmit, large, placeholder }) {
             </svg>
           </span>
         </div>
-        <button
-          className={`pb-send ${value.trim() ? "is-ready" : ""}`}
-          onClick={onSubmit}
-          disabled={!value.trim()}
-        >
+        <button className={`pb-send ${value.trim() ? "is-ready" : ""}`} onClick={onSubmit} disabled={!value.trim()}>
           <span>Build flow</span>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2">
             <path d="M5 12h14M13 6l6 6-6 6" />

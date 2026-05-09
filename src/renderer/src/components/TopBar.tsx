@@ -1,8 +1,20 @@
-export function TopBar({ flow, runState, building, running, onRun, onStop, onReset }) {
+import type { Flow, RunState } from "../types";
+
+type TopBarProps = {
+  flow: Flow | null;
+  runState: RunState;
+  building: boolean;
+  running: boolean;
+  onRun: () => void | Promise<void>;
+  onStop: () => void;
+  onReset: () => void;
+};
+
+export function TopBar({ flow, runState, building, running, onRun, onStop, onReset }: TopBarProps) {
   const allDone =
     flow &&
     Object.keys(runState).length === flow.nodes.length &&
-    Object.values(runState).every((s) => s === "done");
+    Object.values(runState).every((status) => status === "done");
 
   const pillClass = building
     ? "tb-pill-building"

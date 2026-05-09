@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { FLOW_TEMPLATES, PREVIOUS_FLOWS, SUGGESTED_PROMPTS, matchTemplate } from "./data/flowTemplates";
 import { NODE_W, GAP_X } from "./data/constants";
 import { cloneFlow, topoLayers, nodePos } from "./utils/flow";
@@ -22,8 +22,9 @@ import {
   TweakButton,
 } from "./components/tweaks/TweaksPanel";
 import { useTweaks } from "./components/tweaks/useTweaks";
+import type { ChatMessage, Flow, FlowEdge, FlowNode, FlowTemplateId, PaletteItem, RunState, TweakSettings } from "./types";
 
-const TWEAK_DEFAULTS = {
+const TWEAK_DEFAULTS: TweakSettings = {
   accent: "#5fc88f",
   showMinimap: true,
   density: "regular",
@@ -31,36 +32,36 @@ const TWEAK_DEFAULTS = {
 
 export function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [selectedId, setSelectedId] = useState(null);
-  const [flow, setFlow] = useState(null);
+  const [selectedId, setSelectedId] = useState<FlowTemplateId | null>(null);
+  const [flow, setFlow] = useState<Flow | null>(null);
   const [building, setBuilding] = useState(false);
   const [running, setRunning] = useState(false);
-  const [runState, setRunState] = useState({});
+  const [runState, setRunState] = useState<RunState>({});
   const [refineVal, setRefineVal] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [focusId, setFocusId] = useState(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [focusId, setFocusId] = useState<string | null>(null);
   const stopRef = useRef(false);
 
-  function handleSubmit(text) {
+  function handleSubmit(text: string): void {
     const tplId = matchTemplate(text);
     const tpl = FLOW_TEMPLATES[tplId];
-    setMessages((m) => [...m, { role: "user", text }]);
+    setMessages((current) => [...current, { role: "user", text }]);
     setSelectedId(tplId);
     setBuilding(true);
     setRunState({});
     setFlow(null);
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       setFlow(cloneFlow(tpl));
       setBuilding(false);
-      setMessages((m) => [
-        ...m,
+      setMessages((current) => [
+        ...current,
         {
           role: "ai",
           text: tpl.summary,
           steps: [
             `Identified ${tpl.nodes.length} steps and ${tpl.edges.length} connections`,
-            `Mapped to ${new Set(tpl.nodes.map((n) => n.type)).size} node types in your workspace`,
+            `Mapped to ${new Set(tpl.nodes.map((node) => node.type)).size} node types in your workspace`,
             `Connectors are configured · ready to execute`,
           ],
         },
@@ -68,9 +69,8 @@ export function App() {
     }, 900);
   }
 
-  function handleSelect(id) {
+  function handleSelect(id: FlowTemplateId): void {
     const tpl = FLOW_TEMPLATES[id];
-    if (!tpl) return;
     setSelectedId(id);
     setFlow(cloneFlow(tpl));
     setBuilding(false);
@@ -82,7 +82,7 @@ export function App() {
     ]);
   }
 
-  function handleNew() {
+  function handleNew(): void {
     setSelectedId(null);
     setFlow(null);
     setBuilding(false);
@@ -92,78 +92,80 @@ export function App() {
     setFocusId(null);
   }
 
-  async function handleRun() {
+  async function handleRun(): Promise<void> {
     if (!flow || running) return;
     stopRef.current = false;
     setRunning(true);
     const layers = topoLayers(flow);
-    const seed = Object.fromEntries(flow.nodes.map((n) => [n.id, "pending"]));
+    const seed: RunState = Object.fromEntries(flow.nodes.map((node) => [node.id, "pending"]));
     setRunState(seed);
+
     for (const layer of layers) {
       if (stopRef.current) break;
-      setRunState((s) => {
-        const n = { ...s };
-        layer.forEach((id) => (n[id] = "running"));
-        return n;
+      setRunState((state) => {
+        const next: RunState = { ...state };
+        layer.forEach((id) => (next[id] = "running"));
+        return next;
       });
-      await new Promise((r) => setTimeout(r, 650));
+      await new Promise((resolve) => window.setTimeout(resolve, 650));
       if (stopRef.current) break;
-      setRunState((s) => {
-        const n = { ...s };
-        layer.forEach((id) => (n[id] = "done"));
-        return n;
+      setRunState((state) => {
+        const next: RunState = { ...state };
+        layer.forEach((id) => (next[id] = "done"));
+        return next;
       });
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((resolve) => window.setTimeout(resolve, 200));
     }
+
     setRunning(false);
   }
 
-  function handleStop() {
+  function handleStop(): void {
     stopRef.current = true;
     setRunning(false);
   }
 
-  function handleReset() {
+  function handleReset(): void {
     setRunState({});
   }
 
-  function handleMoveNode(id, x, y) {
-    setFlow((f) =>
-      f && {
-        ...f,
-        nodes: f.nodes.map((n) => (n.id === id ? { ...n, x, y, _userPlaced: true } : n)),
-      }
+  function handleMoveNode(id: string, x: number, y: number): void {
+    setFlow((current) =>
+      current && {
+        ...current,
+        nodes: current.nodes.map((node) => (node.id === id ? { ...node, x, y, _userPlaced: true } : node)),
+      },
     );
   }
 
-  function handleDeleteNode(id) {
-    setFlow((f) =>
-      f && {
-        ...f,
-        nodes: f.nodes.filter((n) => n.id !== id),
-        edges: f.edges.filter(([a, b]) => a !== id && b !== id),
-      }
+  function handleDeleteNode(id: string): void {
+    setFlow((current) =>
+      current && {
+        ...current,
+        nodes: current.nodes.filter((node) => node.id !== id),
+        edges: current.edges.filter(([from, to]) => from !== id && to !== id),
+      },
     );
-    setRunState((s) => {
-      const n = { ...s };
-      delete n[id];
-      return n;
+    setRunState((state) => {
+      const next = { ...state };
+      delete next[id];
+      return next;
     });
     if (focusId === id) setFocusId(null);
   }
 
-  function handleAddNode(spec) {
-    setFlow((f) => {
-      if (!f) return f;
-      const rightmost = f.nodes.reduce(
-        (m, n) => {
-          const p = nodePos(n);
-          return p.x > m.x ? p : m;
+  function handleAddNode(spec: PaletteItem): void {
+    setFlow((current) => {
+      if (!current) return current;
+      const rightmost = current.nodes.reduce(
+        (max, node) => {
+          const pos = nodePos(node);
+          return pos.x > max.x ? pos : max;
         },
-        { x: 0, y: 80 }
+        { x: 0, y: 80 },
       );
       const newId = `u${Date.now().toString(36)}`;
-      const newNode = {
+      const newNode: FlowNode = {
         id: newId,
         type: spec.type,
         icon: spec.icon,
@@ -175,30 +177,30 @@ export function App() {
         row: 0,
         _userPlaced: true,
       };
-      const sourceNode = f.nodes.find((n) => {
-        const p = nodePos(n);
-        return p.x === rightmost.x && p.y === rightmost.y;
+      const sourceNode = current.nodes.find((node) => {
+        const pos = nodePos(node);
+        return pos.x === rightmost.x && pos.y === rightmost.y;
       });
-      const newEdges = sourceNode ? [...f.edges, [sourceNode.id, newId]] : f.edges;
-      return { ...f, nodes: [...f.nodes, newNode], edges: newEdges };
+      const newEdges: FlowEdge[] = sourceNode ? [...current.edges, [sourceNode.id, newId]] : current.edges;
+      return { ...current, nodes: [...current.nodes, newNode], edges: newEdges };
     });
   }
 
-  function handleRefine() {
-    const v = refineVal.trim();
-    if (!v) return;
-    setMessages((m) => [...m, { role: "user", text: v }]);
+  function handleRefine(): void {
+    const value = refineVal.trim();
+    if (!value) return;
+    setMessages((current) => [...current, { role: "user", text: value }]);
     setRefineVal("");
     setBuilding(true);
-    setTimeout(() => {
-      const tplId = matchTemplate(v) || selectedId;
-      const tpl = FLOW_TEMPLATES[tplId] || flow;
+    window.setTimeout(() => {
+      const tplId = matchTemplate(value);
+      const tpl = FLOW_TEMPLATES[tplId];
       setFlow(cloneFlow(tpl));
       setSelectedId(tplId);
       setBuilding(false);
       setRunState({});
-      setMessages((m) => [
-        ...m,
+      setMessages((current) => [
+        ...current,
         {
           role: "ai",
           text: `Updated. ${tpl.summary}`,
@@ -209,13 +211,8 @@ export function App() {
   }
 
   return (
-    <div className={`app density-${t.density}`} style={{ "--accent": t.accent }}>
-      <Sidebar
-        flows={PREVIOUS_FLOWS}
-        selectedId={selectedId}
-        onSelect={handleSelect}
-        onNew={handleNew}
-      />
+    <div className={`app density-${t.density}`} style={{ "--accent": t.accent } as CSSProperties}>
+      <Sidebar flows={PREVIOUS_FLOWS} selectedId={selectedId} onSelect={handleSelect} onNew={handleNew} />
 
       <main className="main">
         <TopBar
@@ -262,7 +259,7 @@ export function App() {
 
         {focusId && flow && (
           <NodeInspector
-            node={flow.nodes.find((n) => n.id === focusId)}
+            node={flow.nodes.find((node) => node.id === focusId)}
             status={runState[focusId]}
             onClose={() => setFocusId(null)}
           />
@@ -275,24 +272,21 @@ export function App() {
           label="Accent"
           value={t.accent}
           options={["#5fc88f", "#6b8cef", "#e3a857", "#c4a5f0"]}
-          onChange={(v) => setTweak("accent", v)}
+          onChange={(value) => setTweak("accent", value)}
         />
         <TweakRadio
           label="Density"
           value={t.density}
           options={["compact", "regular"]}
-          onChange={(v) => setTweak("density", v)}
+          onChange={(value) => setTweak("density", value)}
         />
         <TweakToggle
           label="Show minimap"
           value={t.showMinimap}
-          onChange={(v) => setTweak("showMinimap", v)}
+          onChange={(value) => setTweak("showMinimap", value)}
         />
         <TweakSection label="Quick actions" />
-        <TweakButton
-          label="Trigger build"
-          onClick={() => handleSubmit("Daily digest of GitHub trending repos to my team's email")}
-        />
+        <TweakButton label="Trigger build" onClick={() => handleSubmit("Daily digest of GitHub trending repos to my team's email")} />
         <TweakButton label="Run current flow" onClick={handleRun} />
         <TweakButton label="Reset run state" onClick={handleReset} />
       </TweaksPanel>

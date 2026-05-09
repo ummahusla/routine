@@ -1,4 +1,11 @@
-export function Logo({ size = 18, strokeWidth = 2, ...props }) {
+import type { SVGProps } from "react";
+
+type LogoProps = SVGProps<SVGSVGElement> & {
+  size?: number | string;
+  strokeWidth?: number | string;
+};
+
+export function Logo({ size = 18, strokeWidth = 2, ...props }: LogoProps) {
   return (
     <svg
       viewBox="0 0 24 24"

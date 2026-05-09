@@ -1,13 +1,15 @@
 import { useState } from "react";
+import type { ChatMessage } from "../types";
 
-function Message({ m }) {
-  if (m.role === "user") {
+function Message({ message }: { message: ChatMessage }) {
+  if (message.role === "user") {
     return (
       <div className="msg msg-user">
-        <div className="msg-bub">{m.text}</div>
+        <div className="msg-bub">{message.text}</div>
       </div>
     );
   }
+
   return (
     <div className="msg msg-ai">
       <div className="msg-avatar">
@@ -19,13 +21,13 @@ function Message({ m }) {
       </div>
       <div className="msg-body">
         <div className="msg-h">FlowBuild</div>
-        <div className="msg-text">{m.text}</div>
-        {m.steps && (
+        <div className="msg-text">{message.text}</div>
+        {message.steps && (
           <ul className="msg-steps">
-            {m.steps.map((s, i) => (
-              <li key={i}>
+            {message.steps.map((step) => (
+              <li key={step}>
                 <span className="msg-tick">✓</span>
-                {s}
+                {step}
               </li>
             ))}
           </ul>
@@ -35,7 +37,7 @@ function Message({ m }) {
   );
 }
 
-export function ChatThread({ messages }) {
+export function ChatThread({ messages }: { messages: ChatMessage[] }) {
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? messages : messages.slice(-2);
   return (
@@ -46,8 +48,8 @@ export function ChatThread({ messages }) {
         </button>
       )}
       <div className="ct-list">
-        {visible.map((m, i) => (
-          <Message key={i} m={m} />
+        {visible.map((message, i) => (
+          <Message key={`${message.role}-${message.text}-${i}`} message={message} />
         ))}
       </div>
     </div>

@@ -1,9 +1,16 @@
 import { ICONS } from "../data/icons";
 import { TYPE_COLORS } from "../data/typeColors";
+import type { FlowNode, NodeStatus } from "../types";
 
-export function NodeInspector({ node, status, onClose }) {
+type NodeInspectorProps = {
+  node: FlowNode | undefined;
+  status: NodeStatus | undefined;
+  onClose: () => void;
+};
+
+export function NodeInspector({ node, status, onClose }: NodeInspectorProps) {
   if (!node) return null;
-  const c = TYPE_COLORS[node.type] || TYPE_COLORS.transform;
+  const color = TYPE_COLORS[node.type] || TYPE_COLORS.transform;
 
   const statusText =
     status === "running"
@@ -17,7 +24,7 @@ export function NodeInspector({ node, status, onClose }) {
   return (
     <aside className="ins">
       <div className="ins-h">
-        <div className="ins-icon" style={{ color: c.icon, background: c.bg, borderColor: c.border }}>
+        <div className="ins-icon" style={{ color: color.icon, background: color.bg, borderColor: color.border }}>
           {ICONS[node.icon]}
         </div>
         <div className="ins-meta">

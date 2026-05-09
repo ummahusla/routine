@@ -1,13 +1,24 @@
+import type { CSSProperties, MouseEventHandler } from "react";
 import { ICONS } from "../data/icons";
 import { TYPE_COLORS } from "../data/typeColors";
 import { NODE_W, NODE_H } from "../data/constants";
 import { nodePos } from "../utils/flow";
+import type { FlowNode as FlowNodeModel, RunState } from "../types";
 
-export function FlowNode({ n, idx, runState, dragging, onMouseDown, onDelete }) {
-  const c = TYPE_COLORS[n.type] || TYPE_COLORS.transform;
+type FlowNodeProps = {
+  n: FlowNodeModel;
+  idx: number;
+  runState: RunState;
+  dragging: boolean;
+  onMouseDown: MouseEventHandler<HTMLDivElement>;
+  onDelete?: () => void;
+};
+
+export function FlowNode({ n, idx, runState, dragging, onMouseDown, onDelete }: FlowNodeProps) {
+  const color = TYPE_COLORS[n.type];
   const { x, y } = nodePos(n);
-  const status = runState?.[n.id];
-  const revealStyle = !n._userPlaced
+  const status = runState[n.id];
+  const revealStyle: CSSProperties = !n._userPlaced
     ? { animationDelay: `${idx * 60}ms` }
     : { animation: "none", opacity: 1 };
 
@@ -19,13 +30,13 @@ export function FlowNode({ n, idx, runState, dragging, onMouseDown, onDelete }) 
         top: y,
         width: NODE_W,
         height: NODE_H,
-        background: c.bg,
-        borderColor: c.border,
+        background: color.bg,
+        borderColor: color.border,
         ...revealStyle,
       }}
       onMouseDown={onMouseDown}
     >
-      <div className="fc-icon" style={{ color: c.icon }}>
+      <div className="fc-icon" style={{ color: color.icon }}>
         {ICONS[n.icon] || ICONS.code}
       </div>
       <div className="fc-label">
@@ -37,9 +48,9 @@ export function FlowNode({ n, idx, runState, dragging, onMouseDown, onDelete }) 
       <button
         className="fc-del"
         title="Delete step"
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
           onDelete?.();
         }}
       >

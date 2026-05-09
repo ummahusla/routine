@@ -1,26 +1,40 @@
 import { useMemo, useState } from "react";
 import { Logo } from "./Logo";
+import type { FlowTemplateId, PreviousFlow } from "../types";
 
-function FlowItem({ f, active, onClick }) {
+type FlowItemProps = {
+  flow: PreviousFlow;
+  active: boolean;
+  onClick: () => void;
+};
+
+function FlowItem({ flow, active, onClick }: FlowItemProps) {
   return (
     <button className={`sb-item ${active ? "is-active" : ""}`} onClick={onClick}>
-      <span className={`sb-dot sb-dot-${f.status}`} />
-      <span className="sb-item-label">{f.label}</span>
-      <span className="sb-item-when">{f.when}</span>
+      <span className={`sb-dot sb-dot-${flow.status}`} />
+      <span className="sb-item-label">{flow.label}</span>
+      <span className="sb-item-when">{flow.when}</span>
     </button>
   );
 }
 
-export function Sidebar({ flows, selectedId, onSelect, onNew }) {
+type SidebarProps = {
+  flows: PreviousFlow[];
+  selectedId: FlowTemplateId | null;
+  onSelect: (id: FlowTemplateId) => void;
+  onNew: () => void;
+};
+
+export function Sidebar({ flows, selectedId, onSelect, onNew }: SidebarProps) {
   const [q, setQ] = useState("");
   const grouped = useMemo(() => {
-    const today = [];
-    const earlier = [];
+    const today: PreviousFlow[] = [];
+    const earlier: PreviousFlow[] = [];
     flows
-      .filter((f) => f.label.toLowerCase().includes(q.toLowerCase()))
-      .forEach((f) => {
-        if (/h ago|yesterday/i.test(f.when)) today.push(f);
-        else earlier.push(f);
+      .filter((flow) => flow.label.toLowerCase().includes(q.toLowerCase()))
+      .forEach((flow) => {
+        if (/h ago|yesterday/i.test(flow.when)) today.push(flow);
+        else earlier.push(flow);
       });
     return { today, earlier };
   }, [flows, q]);
@@ -48,18 +62,18 @@ export function Sidebar({ flows, selectedId, onSelect, onNew }) {
           <circle cx="11" cy="11" r="6" />
           <path d="M20 20l-3.5-3.5" />
         </svg>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search flows" />
+        <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search flows" />
       </div>
 
       <div className="sb-section">
         {grouped.today.length > 0 && <div className="sb-heading">Today</div>}
-        {grouped.today.map((f) => (
-          <FlowItem key={f.id} f={f} active={f.id === selectedId} onClick={() => onSelect(f.id)} />
+        {grouped.today.map((flow) => (
+          <FlowItem key={flow.id} flow={flow} active={flow.id === selectedId} onClick={() => onSelect(flow.id)} />
         ))}
 
         {grouped.earlier.length > 0 && <div className="sb-heading">Earlier</div>}
-        {grouped.earlier.map((f) => (
-          <FlowItem key={f.id} f={f} active={f.id === selectedId} onClick={() => onSelect(f.id)} />
+        {grouped.earlier.map((flow) => (
+          <FlowItem key={flow.id} flow={flow} active={flow.id === selectedId} onClick={() => onSelect(flow.id)} />
         ))}
       </div>
 

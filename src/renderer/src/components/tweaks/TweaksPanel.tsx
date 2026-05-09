@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 const TWEAKS_STYLE = `
   .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
@@ -59,7 +59,12 @@ const TWEAKS_STYLE = `
   .twk-fab:hover{background:var(--surface-3)}
 `;
 
-export function TweaksPanel({ title = "Tweaks", children }) {
+type TweaksPanelProps = {
+  title?: string;
+  children: ReactNode;
+};
+
+export function TweaksPanel({ title = "Tweaks", children }: TweaksPanelProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -87,11 +92,18 @@ export function TweaksPanel({ title = "Tweaks", children }) {
   );
 }
 
-export function TweakSection({ label }) {
+export function TweakSection({ label }: { label: string }) {
   return <div className="twk-sect">{label}</div>;
 }
 
-function TweakRow({ label, value, children, inline = false }) {
+type TweakRowProps = {
+  label: string;
+  value?: string | number | null;
+  children: ReactNode;
+  inline?: boolean;
+};
+
+function TweakRow({ label, value, children, inline = false }: TweakRowProps) {
   return (
     <div className={inline ? "twk-row twk-row-h" : "twk-row"}>
       <div className="twk-lbl">
@@ -103,7 +115,15 @@ function TweakRow({ label, value, children, inline = false }) {
   );
 }
 
-export function TweakToggle({ label, value, onChange }) {
+export function TweakToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
     <div className="twk-row twk-row-h">
       <div className="twk-lbl">
@@ -114,7 +134,7 @@ export function TweakToggle({ label, value, onChange }) {
         className="twk-toggle"
         data-on={value ? "1" : "0"}
         role="switch"
-        aria-checked={!!value}
+        aria-checked={value}
         onClick={() => onChange(!value)}
       >
         <i />
@@ -123,11 +143,23 @@ export function TweakToggle({ label, value, onChange }) {
   );
 }
 
-export function TweakRadio({ label, value, options, onChange }) {
-  const opts = options.map((o) => (typeof o === "object" ? o : { value: o, label: o }));
+type TweakRadioOption<T extends string> = T | { value: T; label: string };
+
+export function TweakRadio<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: readonly TweakRadioOption<T>[];
+  onChange: (value: T) => void;
+}) {
+  const opts = options.map((option) => (typeof option === "object" ? option : { value: option, label: option }));
   const idx = Math.max(
     0,
-    opts.findIndex((o) => o.value === value)
+    opts.findIndex((option) => option.value === value),
   );
   const n = opts.length;
   return (
@@ -140,15 +172,15 @@ export function TweakRadio({ label, value, options, onChange }) {
             width: `calc((100% - 4px) / ${n})`,
           }}
         />
-        {opts.map((o) => (
+        {opts.map((option) => (
           <button
-            key={o.value}
+            key={option.value}
             type="button"
             role="radio"
-            aria-checked={o.value === value}
-            onClick={() => onChange(o.value)}
+            aria-checked={option.value === value}
+            onClick={() => onChange(option.value)}
           >
-            {o.label}
+            {option.label}
           </button>
         ))}
       </div>
@@ -156,24 +188,34 @@ export function TweakRadio({ label, value, options, onChange }) {
   );
 }
 
-export function TweakColor({ label, value, options, onChange }) {
-  const cur = String(value).toLowerCase();
+export function TweakColor({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  const cur = value.toLowerCase();
   return (
     <TweakRow label={label}>
       <div className="twk-chips" role="radiogroup">
-        {options.map((o, i) => {
-          const on = String(o).toLowerCase() === cur;
+        {options.map((option) => {
+          const on = option.toLowerCase() === cur;
           return (
             <button
-              key={i}
+              key={option}
               type="button"
               className="twk-chip"
               role="radio"
               aria-checked={on}
               data-on={on ? "1" : "0"}
-              title={o}
-              style={{ background: o }}
-              onClick={() => onChange(o)}
+              title={option}
+              style={{ background: option }}
+              onClick={() => onChange(option)}
             >
               {on && (
                 <svg viewBox="0 0 14 14" aria-hidden="true">
@@ -195,7 +237,7 @@ export function TweakColor({ label, value, options, onChange }) {
   );
 }
 
-export function TweakButton({ label, onClick }) {
+export function TweakButton({ label, onClick }: { label: string; onClick: () => void | Promise<void> }) {
   return (
     <button type="button" className="twk-btn" onClick={onClick}>
       {label}

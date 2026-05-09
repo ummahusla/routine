@@ -1,18 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { ICONS } from "../data/icons";
 import { PromptBox } from "./PromptBox";
+import type { SuggestedPrompt } from "../types";
 
-export function EmptyState({ onSubmit, suggestions }) {
+type EmptyStateProps = {
+  onSubmit: (value: string) => void;
+  suggestions: SuggestedPrompt[];
+};
+
+export function EmptyState({ onSubmit, suggestions }: EmptyStateProps) {
   const [val, setVal] = useState("");
-  const ref = useRef(null);
-  useEffect(() => {
-    ref.current?.focus();
-  }, []);
 
-  function send(text) {
-    const v = (text ?? val).trim();
-    if (!v) return;
-    onSubmit(v);
+  function send(text?: string): void {
+    const value = (text ?? val).trim();
+    if (!value) return;
+    onSubmit(value);
     setVal("");
   }
 
@@ -36,10 +38,10 @@ export function EmptyState({ onSubmit, suggestions }) {
       <div className="empty-suggest">
         <div className="empty-suggest-h">Or start from something like</div>
         <div className="empty-suggest-grid">
-          {suggestions.map((s, i) => (
-            <button key={i} className="sg-card" onClick={() => send(s.label)}>
-              <span className="sg-ico">{ICONS[s.icon]}</span>
-              <span className="sg-label">{s.label}</span>
+          {suggestions.map((suggestion) => (
+            <button key={suggestion.label} className="sg-card" onClick={() => send(suggestion.label)}>
+              <span className="sg-ico">{ICONS[suggestion.icon]}</span>
+              <span className="sg-label">{suggestion.label}</span>
               <span className="sg-arrow">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M5 12h14M13 6l6 6-6 6" />
