@@ -43,6 +43,20 @@ Output is capped at 1 MB (the `truncated` flag is set if you hit the cap).
 If you find yourself about to issue `bash { command: "rote ..." }` — STOP and use `rote_exec`
 instead. Every code path, every example below, every `rote ...` line — route through `rote_exec`.
 
+### Reading code blocks in this skill
+
+Examples below appear in two fence styles:
+
+- ```` ```rote-exec ```` — every line is the literal `command` arg to `rote_exec`. Pipe
+  characters, env vars, and shell redirects all work because the harness invokes the line
+  via a subshell internally. **Never run these via the bash tool.**
+- ```` ```bash ```` — true shell snippets. Lines that begin with `rote ` inside a `bash`
+  block are still flagged with a `# Each \`rote ...\` line below: call via rote_exec MCP
+  tool, not bash.` annotation; treat those lines the same as `rote-exec` blocks.
+
+If you ever feel the urge to copy a `rote ...` line into a bash tool call, you are about
+to trigger the hang. Re-route through `rote_exec`.
+
 ## CRITICAL: Prefer rote over direct adapter calls
 
 **If you have called any MCP server or CLI tool directly in this project before, STOP.**
@@ -50,7 +64,7 @@ rote wraps those same adapters. Calling them directly bypasses flow reuse and re
 
 **Before calling any adapter tool directly, run:**
 
-```bash
+```rote-exec
 rote flow search "<your intent>"
 ```
 
@@ -86,14 +100,14 @@ jump straight to WebFetch / direct MCP / curl. Those search *already-installed* 
 only — they say nothing about what's available to install. Run one more step first:
 
 1. **Search the installable adapter catalog:**
-   ```bash
+   ```rote-exec
    rote adapter catalog search "<intent>"       # e.g. "weather", "prediction markets", "stripe"
    rote adapter catalog info <id>               # details on a hit
    ```
 
    The catalog lists first-party and curated community adapters with ready-to-go specs.
    If a hit exists, install it non-interactively and continue:
-   ```bash
+   ```rote-exec
    rote adapter new <id> --yes
    rote adapter info <id>                       # sanity-check Base URL is the API host;
                                                 # if wrong (e.g. points at the spec-hosting URL):
@@ -205,13 +219,13 @@ files under `${ROTE_HOME}/adapters/` or `${ROTE_HOME}/**/workspaces/<name>/.rote
 
 Before doing ANYTHING else, search for a reusable flow:
 
-```bash
+```rote-exec
 rote flow search "your intent here"
 ```
 
 Examples:
 
-```bash
+```rote-exec
 rote flow search "fetch emails"
 rote flow search "list github issues"
 rote flow search "calendar events"
@@ -220,6 +234,7 @@ rote flow search "calendar events"
 **If a flow is found** → Execute it directly from `/tmp`:
 
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 cd /tmp
 
 # For .sh flows (shell scripts):
@@ -236,6 +251,7 @@ rote deno run --allow-all ${ROTE_HOME:-$HOME/.rote}/flows/{endpoint}/{name}.ts [
 **Alternative: Run with model tracking** (for analytics):
 
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 # 1. Create and enter workspace (required for @N storage)
 rote init my-task --seq
 cd ${ROTE_HOME:-$HOME/.rote}/rote/workspaces/my-task
@@ -264,13 +280,13 @@ rote @1 '.result' -r
 
 Use `rote explore` to find which adapter(s) can handle the task:
 
-```bash
+```rote-exec
 rote explore "your intent here"
 ```
 
 Examples:
 
-```bash
+```rote-exec
 rote explore "fetch recent messages"    # → messaging adapter
 rote explore "list repositories"        # → code host adapter
 rote explore "create calendar event"    # → calendar adapter
@@ -283,7 +299,7 @@ This tells you which adapter(s) have relevant capabilities and whether it's a si
 
 **Before spawning anything**, check whether a subagent exists for the adapter:
 
-```bash
+```rote-exec
 rote adapter agent list
 ```
 
@@ -341,7 +357,7 @@ The subagent's Workflow Step 1 checks for this block and skips `rote init` when 
 
 Run `rote init`, enter the workspace, **immediately set the model identity (CHECK 0)**, then probe, call, query responses. The last two commands you run before leaving the workspace are always steps 4a and 4b — non-negotiable.
 
-```bash
+```rote-exec
 rote init <name> --seq
 cd ${ROTE_HOME:-$HOME/.rote}/rote/workspaces/<name>
 rote model set <model> --provider <provider>      # CHECK 0 — mandatory, or flow records "model: not-captured"
@@ -354,6 +370,7 @@ Skipping `rote model set` is the single most-missed protocol step — `rote star
 **Do this before typing a single word of results to the user.** This is not a post-task cleanup step — it is the final action inside the workspace execution, immediately after you have validated the response path.
 
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 rote flow pending write <workspace> \
   --name <suggested-slug> \
   --adapter <adapter-id> \
@@ -365,7 +382,7 @@ The stub survives context compression and session restarts. If the user gets dis
 
 #### Step 4b: Generate Scaffold Command (IMMEDIATELY after 4a — still before output to user)
 
-```bash
+```rote-exec
 rote flow pending save <workspace>
 ```
 
@@ -392,7 +409,7 @@ stub is a question, not permission.
 
 **If the user says yes** — you run the full save sequence yourself, do not instruct the user to run commands manually:
 
-```bash
+```rote-exec
 # 1. Run the scaffold command from pending save output
 rote flow template create --name <slug> --adapter adapter/<id> --workspace <ws> ...
 
@@ -454,7 +471,7 @@ User: "Send me a summary of my upcoming events"
 
 Run to see installed adapter subagents:
 
-```bash
+```rote-exec
 rote adapter agent list
 ```
 
@@ -510,7 +527,7 @@ Correct: spawn new subagent WITH the workspace path from the @@result block
 
 Always start by running `rote how` to see the complete onboarding flow:
 
-```bash
+```rote-exec
 rote how
 ```
 
@@ -522,12 +539,12 @@ This shows a 5-step tree:
 5. Ready to execute
 
 For a compact version:
-```bash
+```rote-exec
 rote how --compact
 ```
 
 For pure ASCII tree (no colors):
-```bash
+```rote-exec
 rote how --tree
 ```
 
@@ -535,7 +552,7 @@ rote how --tree
 
 Run `rote start` to see mandatory agent protocol requirements:
 
-```bash
+```rote-exec
 rote start
 ```
 
@@ -549,7 +566,7 @@ This shows:
 
 Read the core guidance documents:
 
-```bash
+```rote-exec
 # Core agent patterns (700 lines)
 rote guidance agent essential
 
@@ -567,7 +584,7 @@ rote guidance browser essential
 
 Use `rote grammar` to see examples for specific topics:
 
-```bash
+```rote-exec
 rote grammar query      # JSON queries (@N syntax)
 rote grammar http       # HTTP requests
 rote grammar session    # Session management
@@ -586,7 +603,7 @@ Each task gets its own isolated workspace:
 - Independent MCP sessions
 - Separate cache namespace
 
-```bash
+```rote-exec
 rote init my-task --seq
 cd ${ROTE_HOME:-$HOME/.rote}/rote/workspaces/my-task
 ```
@@ -595,7 +612,7 @@ cd ${ROTE_HOME:-$HOME/.rote}/rote/workspaces/my-task
 
 Execute once, query unlimited:
 
-```bash
+```rote-exec
 # Execute MCP call
 rote POST /github '{"method":"tools/call",...}' -s
 
@@ -683,7 +700,7 @@ all the above information explicitly in their request.
 
 **Step 1: EXPLORE** - Use workspace to understand the API:
 
-```bash
+```rote-exec
 rote init my-exploration --seq
 cd ${ROTE_HOME:-$HOME/.rote}/rote/workspaces/my-exploration
 rote explore "your intent"
@@ -704,7 +721,7 @@ parameterized but isn't reusable" flows — the agent picks knobs from imaginati
 
 For the tool you're about to call, get the full input shape:
 
-```bash
+```rote-exec
 rote @<probe-response> '.content[0].text | fromjson | .results[] | select(.name == "<tool>") | .inputSchema' -r
 ```
 
@@ -712,7 +729,7 @@ For every input field of type `object` OR type `string` whose description hints
 at structured content (`filter`, `where`, `query`, `criteria`, `body`, `params`),
 drill in with a test call before scaffolding:
 
-```bash
+```rote-exec
 rote <adapter>_call <tool> '{"<field>": "<probe-shape>"}' -s
 rote is-error @N && rote @N '.content[0].text' -r   # read the API's error message — it tells you the real schema
 ```
@@ -776,6 +793,7 @@ API field; the description bridges the gap.
 **Step 1b: WRITE PENDING STUB** — BEFORE presenting results to the user, write a context anchor:
 
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 rote flow pending write <workspace> \
   --name <suggested-slug> \
   --adapter <adapter-id> \
@@ -793,20 +811,20 @@ After writing the stub, **present results** and ask:
 
 **If user confirms** → run `rote flow pending save <workspace-name>`:
 
-```bash
+```rote-exec
 rote flow pending save <workspace-name>
 # Emits the pre-filled rote flow template create command — copy and run it
 ```
 
 **If user declines** → discard:
 
-```bash
+```rote-exec
 rote flow pending discard <workspace-name>
 ```
 
 To inspect or list pending stubs:
 
-```bash
+```rote-exec
 rote flow pending show <workspace>    # inspect one stub
 rote flow pending list                # all workspaces with pending stubs
 ```
@@ -815,7 +833,7 @@ rote flow pending list                # all workspaces with pending stubs
 
 If the user sends a distraction (side-task, unrelated question, long thread of noise) between the initial flow exploration and the "save as a flow?" ask — and then comes back with "OK, crystallize that flow" — you have likely lost the workspace name from near-context. Do NOT guess it, do NOT skip straight to `rote flow template create`. Run this sequence, in order, every time:
 
-```bash
+```rote-exec
 # 1. Enumerate which workspaces still have unsaved flow work
 rote flow pending list
 
@@ -831,6 +849,7 @@ Skipping step 1 or step 2 is the single most common cause of lost context after 
 **Step 2: SCAFFOLD** - Use `rote flow template create` (recommended):
 
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 # Single adapter:
 rote flow template create --name fetch-issues --adapter adapter/github
 
@@ -922,7 +941,7 @@ The hard gate (above) runs three greps; rerun them after editing `main.ts` to co
 
 **Step 3: TEST** - Run with multiple different inputs (generalization testing):
 
-```bash
+```rote-exec
 # Test with at least 3 different inputs
 rote deno run --allow-all ${ROTE_HOME:-$HOME/.rote}/flows/github/fetch-issues/main.ts facebook react
 rote deno run --allow-all ${ROTE_HOME:-$HOME/.rote}/flows/github/fetch-issues/main.ts anthropic claude
@@ -948,7 +967,7 @@ If the user declines → stop here. The flow stays usable via `rote deno run <pa
 
 1. **Release the flow** — use the dedicated command, not a manual edit:
 
-   ```bash
+   ```rote-exec
    rote flow release <name>
    ```
 
@@ -956,13 +975,13 @@ If the user declines → stop here. The flow stays usable via `rote deno run <pa
 
 2. **Rebuild the index once** — release does not auto-rebuild:
 
-   ```bash
+   ```rote-exec
    rote flow index --rebuild
    ```
 
 3. **Verify the flow is discoverable** — this is the gate, not optional:
 
-   ```bash
+   ```rote-exec
    rote flow search <name>   # MUST return a hit for <name>
    ```
 
@@ -1011,6 +1030,7 @@ If the user declines → stop here. The flow stays usable via `rote deno run <pa
 Fork existing flows with new parameters (~3 seconds vs 30s from scratch):
 
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 # Find existing flow
 rote flow search "fetch github issues"
 
@@ -1034,6 +1054,7 @@ rote export my-flow.sh --params owner,repo,state
 For REST APIs via adapters:
 
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 # Step 1: Probe - search for capability
 rote POST adapter/github-api '{
   "method": "tools/call",
@@ -1082,7 +1103,7 @@ rote POST adapter/github-api '{
 
 **Correct Pattern:**
 
-```bash
+```rote-exec
 # Navigate and auto-snapshot
 rote browse https://example.com
 
@@ -1113,7 +1134,7 @@ Pattern: Navigate → Snapshot → Understand → Interact (ALL IN ROTE)
 
 rote has 98% jq compatibility - no external tools needed:
 
-```bash
+```rote-exec
 # Extract fields
 rote @1 '.items[].name' -r
 
@@ -1151,6 +1172,7 @@ rote aggregate @2..@50 '$.email' --unique
 #### Pattern: List → Build Batch → Execute in Parallel
 
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 # Step 1: Get list of IDs
 rote gmail_call 'gmail.users.messages.list' '{"userId":"me","maxResults":"5"}' -s  # @1
 
@@ -1264,12 +1286,12 @@ async with Rote.create() as rote:
 **IMPORTANT**: Before adding TypeScript, run `rote guidance typescript essential` to choose the right tier.
 
 **Tier 1 - Simple (90%)**: Use native rote commands (~5ms)
-```bash
+```rote-exec
 rote @1 '.items[] | select(.active)' -r
 ```
 
 **Tier 2 - Medium (8%)**: Inline TypeScript for display/calculations (~70-200ms)
-```bash
+```rote-exec
 rote @1 '$' --transform-ts 'return response.filter(x => x.score > 0.8)'
 rote @1 '$' --filter-ts 'item => item.stars > 1000'
 rote @1 '$' --map-ts 'item => ({name: item.name, score: item.stars})'
@@ -1289,7 +1311,7 @@ rote @1 '$' --map-ts 'item => ({name: item.name, score: item.stars})'
 - Just filtering/extracting? → Tier 1
 
 Setup (one-time):
-```bash
+```rote-exec
 rote deno install  # Downloads Deno runtime (~88MB)
 ```
 
@@ -1298,7 +1320,7 @@ Syntax reference: `rote grammar deno`
 ## Command Reference
 
 ### Discovery
-```bash
+```rote-exec
 rote flow search "intent"        # Search flows by natural language
 rote flow list                    # List all flows
 rote explore "intent"            # Cross-adapter tool search (BM25)
@@ -1306,7 +1328,7 @@ rote inventory                    # List all endpoints
 ```
 
 ### Workspace Management
-```bash
+```rote-exec
 rote init <name> [--seq|--par]   # Create workspace
 rote ls                           # List responses
 rote cd <name>                    # Switch workspace
@@ -1314,7 +1336,7 @@ rote set name=value               # Set variable
 ```
 
 ### MCP Operations
-```bash
+```rote-exec
 # For adapters, always use adapter/<id> prefix:
 rote init-session adapter/github   # Initialize adapter session
 rote POST adapter/github '{}' -s   # Execute tool call (-s = session)
@@ -1328,6 +1350,7 @@ rote github_call <tool> '{}' -s    # Execute specific operation
 
 ### Adapter Configuration (post-creation)
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 # Discover what's mutable
 rote adapter keys <id>                  # human-readable
 rote adapter keys <id> --json           # machine-readable
@@ -1345,7 +1368,7 @@ rote adapter set apache-airflow base_url \
 ```
 
 ### Query & Transform
-```bash
+```rote-exec
 rote @N '<query>' -r              # Query cached response (raw output)
 rote @N '<query>' -s <var>       # Store result in variable
 rote @N '<query>' -m              # MCP unwrap (extract content)
@@ -1358,7 +1381,7 @@ Most adapter calls return an MCP envelope where the useful JSON is a string
 inside `.content[0].text`. To filter it, chain `fromjson` inside ONE rote
 query — do NOT pipe `.content[0].text` into jq, python, or another shell:
 
-```bash
+```rote-exec
 # ✅ one-liner, stays inside rote
 rote @N '.content[0].text | fromjson | map(select(.tag == "weather"))' -r
 rote @N '.content[0].text | fromjson | .results[:5][] | "\(.id)\t\(.name)"' -r
@@ -1378,7 +1401,7 @@ adapter returned `{"is_error": true, "content": [{"text": "HTTP 4xx ..."}]}`, th
 `fromjson` will fail on the non-JSON error string and rote reports "configuration error"
 — which looks like your jq is wrong, but the real failure is upstream. Check once:
 
-```bash
+```rote-exec
 rote is-error @N && rote @N '$' -r   # bail out and inspect raw if the response was flagged
 ```
 
@@ -1386,7 +1409,7 @@ Do NOT retry the same `fromjson` chain with different jq variants against an err
 envelope — fix the underlying call (wrong base URL, missing auth, bad params) instead.
 
 ### Flow Management
-```bash
+```rote-exec
 rote export <path> --params x,y  # Export workspace as flow
 rote flow fork <flow.sh>          # Fork flow with new params
 rote decompile <flow.sh>          # Extract command log
@@ -1394,7 +1417,7 @@ rote replay <params>              # Execute decompiled commands
 ```
 
 ### Architecture & Guidance
-```bash
+```rote-exec
 rote how                          # Agent onboarding flow
 rote start                        # Protocol checklist
 rote guidance <topic> [module]   # Embedded guidance
@@ -1424,7 +1447,7 @@ rote provides inline `[HINT]` messages to guide your workflow. These are NOT err
 ### How to Use HINTS
 
 **On Success** - Execute suggested queries:
-```bash
+```rote-exec
 rote POST /github '{...}' -s
 # [HINT] Response Structure Detected:
 #   → Extract name: rote @2 '$ | .[] | .name'
@@ -1434,7 +1457,7 @@ rote @2 '$ | .[] | .name' -r
 ```
 
 **On Failure** - Reflect and retry with suggested fix:
-```bash
+```rote-exec
 rote POST /api '{...}' -s
 # [HINT] HTTP requests without error checking
 # [HINT] Consider: is-error @5 || exit 1
@@ -1445,7 +1468,7 @@ rote is-error @5 && exit 1  # Apply suggested fix
 ```
 
 **Anti-Pattern** - Evaluate and refactor if applicable:
-```bash
+```rote-exec
 # [HINT] Sequential requests could be parallel
 # [HINT] Consider: rote -p POST /a '{...}' -s POST /b '{...}' -s
 
@@ -1466,6 +1489,7 @@ rote -p POST /a '{...}' -s POST /b '{...}' -s
 
 ### Flow Not Found
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 # Search before building!
 rote flow search "your intent"
 
@@ -1480,7 +1504,7 @@ rote run --inference-id $(uuidgen) \
 ```
 
 ### Session Errors
-```bash
+```rote-exec
 # Always use -s flag for MCP operations
 rote POST adapter/github '{}' -s
 
@@ -1494,7 +1518,7 @@ Symptom: `rote <id>_call` returns HTTP 404, connection-refused, or wrong-tenant
 data — `base_url` is stale or points at the spec-hosting URL instead of the
 API host. Fix in place; do not recreate.
 
-```bash
+```rote-exec
 rote adapter keys <id>                        # confirm base_url is settable
 rote adapter set <id> base_url <correct-url>  # validated, fingerprint preserved
 rote <id>_call <same-tool> '{}'               # retry
@@ -1508,7 +1532,7 @@ orphans every crystallized flow that references the adapter — avoid. See
 
 Before retrying a failing `rote @N` query with different jq syntax, **always inspect the raw response first** — most "configuration error" / "malformed jq" messages actually mean the response itself is an error envelope (`is_error: true`), not that your jq is wrong.
 
-```bash
+```rote-exec
 # First: inspect the raw response shape
 rote @N '$' -r
 
@@ -1529,7 +1553,7 @@ rote @N '.content[0].text | fromjson | map({question, volume, slug})' -r   # saf
 Reference: `rote grammar query` for full examples.
 
 ### Need Help?
-```bash
+```rote-exec
 rote how                    # Onboarding flow
 rote grammar <topic>        # Command examples
 rote guidance <topic>       # Detailed guides
@@ -1540,6 +1564,7 @@ rote machine <topic>        # Architecture docs
 
 ### Example 1: Fetch GitHub Issues
 ```bash
+# Each `rote ...` line below: call via rote_exec MCP tool, not bash.
 rote init github-issues --seq
 cd ${ROTE_HOME:-$HOME/.rote}/rote/workspaces/github-issues
 rote set owner=facebook repo=react state=open
@@ -1568,7 +1593,7 @@ rote export ${ROTE_HOME:-$HOME/.rote}/flows/github/list-issues.sh --params owner
 ```
 
 ### Example 2: Browser Automation
-```bash
+```rote-exec
 rote init web-scrape --seq
 cd ${ROTE_HOME:-$HOME/.rote}/rote/workspaces/web-scrape
 rote browse https://example.com
