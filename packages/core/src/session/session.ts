@@ -27,6 +27,7 @@ import { buildReplay } from "./replay.js";
 import { ulid } from "./ulid.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
 import { SessionBusyError } from "./errors.js";
+import { startSafeShellForSession, type SafeShellSessionHandle } from "./safe-shell-lifecycle.js";
 import type {
   LineEnvelope,
   SendTurnOptions,
@@ -78,6 +79,7 @@ export class Session {
     | { turnId: string; abort: AbortController; runCancel?: () => Promise<void> }
     | undefined;
   private closed = false;
+  private safeShell: SafeShellSessionHandle | undefined;
 
   constructor(opts: SessionInternalOptions) {
     this.baseDir = opts.baseDir;
@@ -195,7 +197,7 @@ export class Session {
     // mark the turn failed so callers can recover instead of waiting
     // forever. Declared here so the outer finally can clear leftovers.
     const TOOL_WATCHDOG_DEFAULT_MS = 60_000;
-    const TOOL_WATCHDOG_SLACK_MS = 5_000;
+    const TOOL_WATCHDOG_SLACK_MS = 10_000;
     const TOOL_WATCHDOG_MAX_MS = 600_000;
     const toolWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
     const clearAllToolWatchdogs = (): void => {
@@ -215,6 +217,48 @@ export class Session {
       }
       const pluginPrefix = await host.runPromptPrefix(ctx);
       const mcpServers = await host.runProvideMcpServers(ctx);
+
+      // Lazy-init safe-shell on first send (mirrors the systemPromptApplied
+      // precedent above): the hooks-file install + HTTP listener startup
+      // are async/IO-bound, so we defer them out of the constructor. The
+      // FLOW_BUILD_SAFE_SHELL=0 escape hatch lets operators bypass entirely
+      // if the upstream SDK fix lands. Default-on so new sessions get the
+      // shell-deny + sandboxed sh tool automatically.
+      // Serialization rationale: the SessionBusyError check at the top of send()
+      // guarantees only one in-flight send() per Session, so the if/await/assign
+      // below is effectively single-threaded. Don't move it above the busy check
+      // or two concurrent sends could both fire startSafeShellForSession and
+      // leak an HTTP listener + a hooks-file install.
+      const safeShellEnabled = process.env.FLOW_BUILD_SAFE_SHELL !== "0";
+      let mergedMcpServers = mcpServers;
+      if (safeShellEnabled) {
+        if (!this.safeShell) {
+          try {
+            this.safeShell = await startSafeShellForSession({
+              workspaceDir: this.workspaceDir,
+              logger: this.logger,
+            });
+          } catch (e) {
+            this.logger.warn("safe-shell startup failed; continuing without it", {
+              cause: String(e),
+            });
+          }
+        }
+        if (this.safeShell) {
+          if (
+            mergedMcpServers &&
+            Object.prototype.hasOwnProperty.call(mergedMcpServers, "safe-shell")
+          ) {
+            this.logger.warn(
+              "plugin provided an mcpServers entry under key 'safe-shell'; harness entry wins",
+            );
+          }
+          mergedMcpServers = {
+            ...(mergedMcpServers ?? {}),
+            "safe-shell": this.safeShell.mcpEntry,
+          };
+        }
+      }
 
       const priorTurns = reduce(
         readEvents({ baseDir: this.baseDir, sessionId: this.sessionId }),
@@ -242,8 +286,8 @@ export class Session {
                 apiKey: this.apiKey,
                 model: { id: effectiveModel },
                 local: { cwd: this.workspaceDir, settingSources: ["project", "user"] },
-                ...(mcpServers && Object.keys(mcpServers).length > 0
-                  ? { mcpServers }
+                ...(mergedMcpServers && Object.keys(mergedMcpServers).length > 0
+                  ? { mcpServers: mergedMcpServers }
                   : {}),
               });
             } catch (e) {
@@ -340,11 +384,52 @@ export class Session {
             : TOOL_WATCHDOG_DEFAULT_MS;
         const deadline = baseMs + TOOL_WATCHDOG_SLACK_MS;
         const t = setTimeout(() => {
+          // Race guard: a real tool_end may have arrived in the same tick
+          // and called clearToolWatchdog. clearTimeout() can't unschedule
+          // a callback already on the queue, so re-check the map before
+          // synthesizing — otherwise we'd emit a duplicate tool_end after
+          // the real one.
+          if (!toolWatchdogs.has(callId)) return;
           toolWatchdogs.delete(callId);
-          this.logger.warn("tool watchdog fired", { callId, name, deadlineMs: deadline });
+          this.logger.warn("tool watchdog fired", {
+            callId,
+            name,
+            deadlineMs: deadline,
+            sdkVersion: "1.0.12",
+          });
+          // 1) Synthesize a tool_end so the UI doesn't show a stuck running call.
+          //    Route through host.intercept + persistEvent + onEvent, the same path
+          //    real tool_end events use, so JSONL replay captures it identically.
+          const synthetic: HarnessEvent = {
+            type: "tool_end",
+            name,
+            callId,
+            ok: false,
+            ...(argsObj !== undefined ? { args: argsObj } : {}),
+            result: { error: "watchdog timeout", deadlineMs: deadline },
+          };
+          for (const e2 of host.intercept(synthetic, ctx)) {
+            persistEvent(e2);
+            onEvent({ ...e2, turnId });
+            if (e2.type === "tool_end") {
+              host.fireToolCall(
+                {
+                  callId,
+                  name,
+                  status: "error",
+                  ...(e2.args !== undefined ? { args: e2.args } : {}),
+                  ...(e2.result !== undefined ? { result: e2.result } : {}),
+                },
+                ctx,
+              );
+            }
+          }
+          // 2) Surface the error and abort the run, as before — but with a clearer
+          //    message that calls out the SDK regression.
           midStreamError = mapToHarnessError(
             new Error(
-              `tool "${name}" produced no result after ${deadline}ms (no tool_end from SDK). aborting turn.`,
+              `tool "${name}" produced no result after ${deadline}ms ` +
+                `(no tool_end from Cursor SDK; known regression in @cursor/sdk 1.0.12). aborting turn.`,
             ),
           );
           status = "failed";
@@ -567,6 +652,17 @@ export class Session {
         await this.host.endSession(endCtx);
       } catch (e) {
         this.logger.warn("plugin endSession threw", { cause: String(e) });
+      }
+      // Dispose AFTER plugins finish their endSession work — plugin
+      // cleanup may still want shell access; we tear down the hooks
+      // file + MCP listener last.
+      if (this.safeShell) {
+        try {
+          await this.safeShell.dispose();
+        } catch (e) {
+          this.logger.warn("safe-shell dispose failed", { cause: String(e) });
+        }
+        this.safeShell = undefined;
       }
     } finally {
       releaseLock(lockPath(this.baseDir, this.sessionId));

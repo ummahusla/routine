@@ -1,5 +1,5 @@
 {
-  "name": "@flow-build/core",
+  "name": "@flow-build/safe-shell-mcp",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,19 +9,18 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
-  "files": ["dist"],
+  "files": ["dist", "scripts"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@cursor/sdk": "^1.0.0",
-    "@flow-build/flowbuilder": "workspace:*",
-    "@flow-build/rote": "workspace:*",
-    "@flow-build/safe-shell-mcp": "workspace:*"
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
   }
 }

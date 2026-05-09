@@ -28,10 +28,16 @@ vi.mock("@cursor/sdk", async () => {
 beforeEach(() => {
   captured = undefined;
   process.env.CURSOR_API_KEY = "crsr_test";
+  // Disable safe-shell wiring for these mcp-merge tests — they assert on
+  // the exact shape of mcpServers passed to Agent.create and shouldn't
+  // see the harness's safe-shell entry. Safe-shell merge coverage lives
+  // in session.test.ts.
+  process.env.FLOW_BUILD_SAFE_SHELL = "0";
 });
 
 afterEach(() => {
   delete process.env.CURSOR_API_KEY;
+  delete process.env.FLOW_BUILD_SAFE_SHELL;
 });
 
 describe("runPrompt forwards plugin-contributed mcpServers", () => {

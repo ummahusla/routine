@@ -20,11 +20,17 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "session-"));
   process.env.CURSOR_API_KEY = "crsr_test";
+  // Default-off for the existing test suite: most tests don't care about
+  // the safe-shell wiring and we don't want them spinning up real HTTP
+  // listeners. The dedicated safe-shell tests below set this back to
+  // unset to exercise the default-on path.
+  process.env.FLOW_BUILD_SAFE_SHELL = "0";
   vi.resetModules();
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
   delete process.env.CURSOR_API_KEY;
+  delete process.env.FLOW_BUILD_SAFE_SHELL;
   vi.doUnmock("@cursor/sdk");
 });
 
@@ -291,7 +297,77 @@ describe("Session.send", () => {
     const lastLine = lines[lines.length - 1];
     expect(lastLine.kind).toBe("turn_end");
     expect(lastLine.status).toBe("failed");
-  }, 10_000);
+  }, 15_000);
+
+  it("watchdog synthesizes tool_end ok=false BEFORE error and includes SDK-regression message", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    let releaseStream!: () => void;
+    const streamPark = new Promise<void>((r) => (releaseStream = r));
+    const fa = makeFakeAgent({ waitResult: { status: "completed" } });
+    fa.run.cancel = vi.fn(async () => {
+      releaseStream();
+    });
+    fa.run.stream = async function* () {
+      yield {
+        type: "tool_call",
+        call_id: "abc",
+        name: "Read",
+        status: "running",
+        args: { timeout: 50 },
+      };
+      await streamPark;
+    };
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const onEventCalls: Array<{ type: string; [k: string]: unknown }> = [];
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({
+      baseDir: dir,
+      sessionId: "S1",
+      apiKey: "crsr_test",
+      retry: { attempts: 1 },
+    });
+    await expect(
+      session.send("hi", {
+        onEvent: (ev: { type: string; [k: string]: unknown }) => {
+          onEventCalls.push(ev);
+        },
+      }),
+    ).rejects.toThrow(/known regression in @cursor\/sdk 1\.0\.12/);
+
+    // Verify the JSONL stream contains a tool_end ok=false BEFORE the error event.
+    const lines = readFileSync(eventsPath(dir, "S1"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const toolEndIdx = lines.findIndex(
+      (l) => l.kind === "tool_end" && l.callId === "abc" && l.ok === false,
+    );
+    const errIdx = lines.findIndex((l) => l.kind === "error");
+    expect(toolEndIdx).toBeGreaterThanOrEqual(0);
+    expect(errIdx).toBeGreaterThanOrEqual(0);
+    expect(toolEndIdx).toBeLessThan(errIdx);
+
+    // Verify the synthesized tool_end shape.
+    const synthEnd = lines[toolEndIdx];
+    expect(synthEnd.name).toBe("Read");
+    expect(synthEnd.ok).toBe(false);
+    expect(synthEnd.result).toMatchObject({ error: "watchdog timeout" });
+    expect(typeof synthEnd.result.deadlineMs).toBe("number");
+
+    // Verify the error message text mentions the SDK version regression.
+    const errLine = lines[errIdx];
+    expect(errLine.message).toMatch(/known regression in @cursor\/sdk 1\.0\.12/);
+
+    // Verify onEvent saw tool_end before error, too (UI subscribes here).
+    const onEventToolEndIdx = onEventCalls.findIndex(
+      (e) => e.type === "tool_end" && e.callId === "abc" && e.ok === false,
+    );
+    const onEventErrIdx = onEventCalls.findIndex((e) => e.type === "error");
+    expect(onEventToolEndIdx).toBeGreaterThanOrEqual(0);
+    expect(onEventErrIdx).toBeGreaterThanOrEqual(0);
+    expect(onEventToolEndIdx).toBeLessThan(onEventErrIdx);
+  }, 15_000);
 
   it("uses opts.model for Agent.create + turn_start, persists meta.model", async () => {
     initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "composer-2" });
@@ -365,5 +441,70 @@ describe("Session.send", () => {
     const last = lines[lines.length - 1];
     expect(last.kind).toBe("turn_end");
     expect(last.status).toBe("cancelled");
+  });
+
+  it("safe-shell default-on: send() installs .cursor/hooks.json and merges mcp entry; close() restores", async () => {
+    // Opt back in to default-on behavior for this test only.
+    delete process.env.FLOW_BUILD_SAFE_SHELL;
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    const fa = makeFakeAgent({
+      streamItems: [
+        { type: "assistant", message: { content: [{ type: "text", text: "ok" }] } },
+      ],
+      waitResult: { status: "completed" },
+    });
+    const fake = installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { existsSync } = await import("node:fs");
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({ baseDir: dir, sessionId: "S1", apiKey: "crsr_test" });
+    const hooksPath = join(session.workspaceDir, ".cursor", "hooks.json");
+
+    expect(existsSync(hooksPath)).toBe(false);
+    await session.send("hi");
+    expect(existsSync(hooksPath)).toBe(true);
+
+    // Verify the mcpServers config passed to Agent.create includes the
+    // harness "safe-shell" entry.
+    const cfg = fake.lastCreateConfig() as { mcpServers?: Record<string, { type: string; url: string }> };
+    expect(cfg.mcpServers).toBeDefined();
+    expect(cfg.mcpServers!["safe-shell"]).toBeDefined();
+    expect(cfg.mcpServers!["safe-shell"].type).toBe("http");
+    expect(cfg.mcpServers!["safe-shell"].url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
+
+    await session.close();
+    expect(existsSync(hooksPath)).toBe(false);
+  });
+
+  it("safe-shell disabled via FLOW_BUILD_SAFE_SHELL=0: no hooks file written, no mcp entry merged", async () => {
+    // beforeEach already sets FLOW_BUILD_SAFE_SHELL=0; assert the no-op path.
+    expect(process.env.FLOW_BUILD_SAFE_SHELL).toBe("0");
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    const fa = makeFakeAgent({
+      streamItems: [
+        { type: "assistant", message: { content: [{ type: "text", text: "ok" }] } },
+      ],
+      waitResult: { status: "completed" },
+    });
+    const fake = installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { existsSync } = await import("node:fs");
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({ baseDir: dir, sessionId: "S1", apiKey: "crsr_test" });
+    const hooksPath = join(session.workspaceDir, ".cursor", "hooks.json");
+
+    await session.send("hi");
+    expect(existsSync(hooksPath)).toBe(false);
+
+    // mcpServers either omitted entirely (no plugin contributions) or, if
+    // present, must NOT contain a safe-shell entry.
+    const cfg = fake.lastCreateConfig() as { mcpServers?: Record<string, unknown> };
+    if (cfg.mcpServers) {
+      expect(Object.prototype.hasOwnProperty.call(cfg.mcpServers, "safe-shell")).toBe(false);
+    }
+
+    await session.close();
+    // Still absent; nothing to restore.
+    expect(existsSync(hooksPath)).toBe(false);
   });
 });

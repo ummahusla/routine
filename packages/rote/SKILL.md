@@ -16,6 +16,14 @@ rote sits in front of your adapters — both MCP servers and CLI-based tools. In
 adapter tools directly, use rote — it checks for reusable crystallized flows first, caches
 responses, and tracks what works.
 
+## TOP PRIORITY (flow-build harness): the built-in `Shell` tool is disabled
+
+Inside the flow-build harness, `@cursor/sdk@1.0.12` has a confirmed server-side regression where the built-in `Shell` tool emits `tool_start` but never `tool_end`. The harness disables the built-in via a `PreToolUse` hook and ships a replacement MCP tool:
+
+- **`mcp__safe-shell__sh`** — runs an arbitrary shell command via `/bin/sh -c` with a hard timeout and bounded output. Returns `{ ok, stdout, stderr, exitCode, signal, durationMs, timedOut, truncated }`.
+
+Use `sh` for *any* shell-style invocation. Use `rote_exec` (below) for `rote ...` commands specifically — its semantics are identical, but it pre-validates the leading token and is the canonical entry point for rote work.
+
 ## TOP PRIORITY (flow-build harness): use the `rote_exec` MCP tool, NOT bash
 
 When running inside the flow-build harness, the host's bash shell tool **hangs indefinitely on

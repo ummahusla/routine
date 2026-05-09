@@ -12,12 +12,18 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "flow-build-"));
   process.env.CURSOR_API_KEY = "crsr_test";
+  // Disable safe-shell wiring for runPrompt tests — they don't want the
+  // harness spinning up real HTTP listeners or writing .cursor/hooks.json
+  // into the test cwd. Safe-shell coverage lives in session.test.ts and
+  // safe-shell-lifecycle.test.ts.
+  process.env.FLOW_BUILD_SAFE_SHELL = "0";
   vi.resetModules();
 });
 
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
   delete process.env.CURSOR_API_KEY;
+  delete process.env.FLOW_BUILD_SAFE_SHELL;
   vi.doUnmock("@cursor/sdk");
 });
 
