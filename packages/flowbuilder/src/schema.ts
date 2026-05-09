@@ -42,12 +42,22 @@ export const MergeNodeSchema = BaseNodeSchema.extend({
   type: z.literal("merge"),
 });
 
+export const LlmNodeSchema = BaseNodeSchema.extend({
+  type: z.literal("llm"),
+  prompt: z.string().min(1),
+  model: z.string().default("claude-sonnet-4-6"),
+  maxTokens: z.number().int().positive().default(4096),
+  temperature: z.number().min(0).max(2).default(0.7),
+  systemPrompt: z.string().optional(),
+});
+
 export const NodeSchema = z.discriminatedUnion("type", [
   InputNodeSchema,
   OutputNodeSchema,
   FlowNodeSchema,
   BranchNodeSchema,
   MergeNodeSchema,
+  LlmNodeSchema,
 ]);
 
 export type Node = z.infer<typeof NodeSchema>;
