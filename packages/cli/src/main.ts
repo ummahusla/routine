@@ -43,8 +43,12 @@ export async function runCli(deps: CliDeps): Promise<void> {
   } catch (e) {
     const err = e as { code?: string; message?: string };
     if (err.code === "commander.helpDisplayed" || err.code === "commander.version") return;
-    deps.stderr.write(`error: ${err.message ?? String(e)}\n`);
-    deps.exit(1);
+    if (typeof err.code === "string" && err.code.startsWith("commander.")) {
+      deps.stderr.write(`error: ${err.message ?? String(e)}\n`);
+      deps.exit(1);
+      return;
+    }
+    throw e;
   }
 }
 
@@ -84,8 +88,9 @@ async function executeRun(
 
   const attempts = opts.retry ? opts.maxRetries : 1;
 
+  let result;
   try {
-    const result = await runPrompt({
+    result = await runPrompt({
       prompt,
       cwd: opts.cwd,
       model: opts.model,
@@ -94,10 +99,6 @@ async function executeRun(
       logger,
       retry: { attempts },
     });
-
-    if (result.status === "completed") deps.exit(0);
-    if (result.status === "cancelled") deps.exit(130);
-    deps.exit(1);
   } catch (e) {
     deps.stderr.write(`\nerror: ${(e as Error).message}\n`);
     if (opts.verbose && (e as { cause?: unknown }).cause) {
@@ -108,7 +109,12 @@ async function executeRun(
     if (e instanceof NetworkError) deps.exit(3);
     if (e instanceof HarnessError) deps.exit(1);
     deps.exit(1);
+    return;
   }
+
+  if (result.status === "completed") deps.exit(0);
+  if (result.status === "cancelled") deps.exit(130);
+  deps.exit(1);
 }
 
 const isMainModule =
