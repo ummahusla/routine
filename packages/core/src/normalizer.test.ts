@@ -225,3 +225,53 @@ describe("normalize SDK uppercase status values", () => {
     ]);
   });
 });
+
+describe("normalize tool_call result propagation", () => {
+  it("includes result on tool_end (completed)", () => {
+    const out = normalize({
+      type: "tool_call",
+      call_id: "c1",
+      name: "shell",
+      status: "completed",
+      args: { command: "ls" },
+      result: { stdout: "a\nb\n", exitCode: 0 },
+    });
+    expect(out).toEqual([
+      {
+        type: "tool_end",
+        name: "shell",
+        callId: "c1",
+        ok: true,
+        args: { command: "ls" },
+        result: { stdout: "a\nb\n", exitCode: 0 },
+      },
+    ]);
+  });
+
+  it("includes result on tool_end (error)", () => {
+    const out = normalize({
+      type: "tool_call",
+      call_id: "c2",
+      name: "shell",
+      status: "error",
+      args: { command: "boom" },
+      result: { stderr: "no such file", exitCode: 127 },
+    });
+    expect(out[0]).toMatchObject({
+      type: "tool_end",
+      ok: false,
+      result: { stderr: "no such file", exitCode: 127 },
+    });
+  });
+
+  it("omits result when SDK did not include it", () => {
+    const out = normalize({
+      type: "tool_call",
+      call_id: "c3",
+      name: "shell",
+      status: "completed",
+      args: { command: "ls" },
+    });
+    expect(out[0]).not.toHaveProperty("result");
+  });
+});

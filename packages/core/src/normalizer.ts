@@ -80,14 +80,16 @@ function normalizeToolCall(msg: unknown, logger?: Logger): HarnessEvent[] {
   const callId = get<string>(msg, "call_id");
   const status = get<string>(msg, "status");
   const args = get<unknown>(msg, "args");
+  const result = get<unknown>(msg, "result");
   if (typeof name !== "string" || typeof callId !== "string") {
     logger?.warn("schema drift", { type: "tool_call", field: "name|call_id" });
     return [];
   }
   const argsField = args !== undefined ? { args } : {};
+  const resultField = result !== undefined ? { result } : {};
   if (status === "running") return [{ type: "tool_start", name, callId, ...argsField }];
-  if (status === "completed") return [{ type: "tool_end", name, callId, ok: true, ...argsField }];
-  if (status === "error") return [{ type: "tool_end", name, callId, ok: false, ...argsField }];
+  if (status === "completed") return [{ type: "tool_end", name, callId, ok: true, ...argsField, ...resultField }];
+  if (status === "error") return [{ type: "tool_end", name, callId, ok: false, ...argsField, ...resultField }];
   logger?.warn("unknown tool_call status", { status });
   return [];
 }
