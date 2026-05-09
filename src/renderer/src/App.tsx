@@ -546,12 +546,13 @@ export function App() {
     setRunning(false);
   }
 
-  // Enable Play when the engine can execute: at least one output node, no
-  // branch/merge (topo rejects those). Graphs may start with flow/llm nodes
-  // without an explicit input — the engine seeds the root with an empty envelope.
+  // Enable Play when the engine can execute: non-empty graph, no branch/merge
+  // (topo rejects those). An output node is optional—the run still succeeds
+  // and ends at the last step; only runs with an output node get a finalOutput.
+  // Root flow/llm/input nodes get an empty upstream envelope when they have no inputs.
   const canRun = useMemo(() => {
     if (!selectedSessionId || !fbState) return false;
-    if (!fbState.nodes.some((n) => n.type === "output")) return false;
+    if (fbState.nodes.length === 0) return false;
     if (fbState.nodes.some((n) => n.type === "branch" || n.type === "merge")) return false;
     return true;
   }, [selectedSessionId, fbState]);
