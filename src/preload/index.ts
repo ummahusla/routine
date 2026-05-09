@@ -1,142 +1,85 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
+import type {
+  PersistedTurn,
+  SessionEvent,
+  SessionMetadata,
+  TurnResult,
+} from "@flow-build/core";
 
-type CursorChatEvent =
-  | {
-      type: "text";
-      text: string;
-    }
-  | {
-      type: "done";
-      status: string;
-    }
-  | {
-      type: "error";
-      error: string;
-    };
+type IpcOk<T> = { ok: true } & T;
+type IpcErr = { ok: false; code: string; error: string };
+type IpcResult<T> = IpcOk<T> | IpcErr;
 
-type CursorChatResult =
-  | {
-      ok: true;
-      status: string;
-    }
-  | {
-      ok: false;
-      error: string;
-    };
-
-type FlowbuilderNode =
-  | {
-      id: string;
-      type: "input";
-      value: unknown;
-    }
-  | {
-      id: string;
-      type: "output";
-      value: unknown;
-    }
-  | {
-      id: string;
-      type: "flow";
-      flow: string;
-      params: Record<string, unknown>;
-    }
-  | {
-      id: string;
-      type: "branch";
-      cond: string;
-    }
-  | {
-      id: string;
-      type: "merge";
-    };
-
-type FlowbuilderEdge = {
-  from: string;
-  to: string;
-};
-
-type FlowbuilderManifest = {
-  schemaVersion: 1;
-  id: string;
-  name: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type FlowbuilderState = {
-  schemaVersion: 1;
-  nodes: FlowbuilderNode[];
-  edges: FlowbuilderEdge[];
-};
-
-type FlowbuilderSessionSummary = {
-  id: string;
-  name: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-  nodeCount: number;
-};
-
-type FlowbuilderListSessionsResult =
-  | {
-      ok: true;
-      baseDir: string;
-      sessions: FlowbuilderSessionSummary[];
-    }
-  | {
-      ok: false;
-      baseDir: string;
-      error: string;
-    };
-
-type FlowbuilderReadSessionResult =
-  | {
-      ok: true;
-      baseDir: string;
-      manifest: FlowbuilderManifest;
-      state: FlowbuilderState;
-    }
-  | {
-      ok: false;
-      baseDir: string;
-      sessionId: string;
-      error: string;
-    };
+function unwrap<T>(r: IpcResult<T>): T {
+  if (!r || (r as IpcErr).ok === false) {
+    const e = r as IpcErr;
+    const err = new Error(e?.error ?? "ipc error");
+    (err as { code?: string }).code = e?.code;
+    throw err;
+  }
+  return r as unknown as T;
+}
 
 const api = {
-  cursorChat: {
-    send(prompt: string, onEvent: (event: CursorChatEvent) => void): Promise<CursorChatResult> {
-      const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
+  session: {
+    async list(): Promise<SessionMetadata[]> {
+      const r = await ipcRenderer.invoke("session:list");
+      return unwrap<{ items: SessionMetadata[] }>(r).items;
+    },
+    async create(opts: { title?: string; model?: string } = {}): Promise<{ sessionId: string }> {
+      const r = await ipcRenderer.invoke("session:create", opts);
+      return unwrap<{ sessionId: string }>(r);
+    },
+    async open(sessionId: string): Promise<{ metadata: SessionMetadata; turns: PersistedTurn[] }> {
+      const r = await ipcRenderer.invoke("session:open", { sessionId });
+      return unwrap<{ metadata: SessionMetadata; turns: PersistedTurn[] }>(r);
+    },
+    async send(sessionId: string, prompt: string): Promise<TurnResult> {
+      const r = await ipcRenderer.invoke("session:send", { sessionId, prompt });
+      return unwrap<TurnResult>(r);
+    },
+    async cancel(sessionId: string): Promise<void> {
+      unwrap(await ipcRenderer.invoke("session:cancel", { sessionId }));
+    },
+    async rename(sessionId: string, title: string): Promise<void> {
+      unwrap(await ipcRenderer.invoke("session:rename", { sessionId, title }));
+    },
+    async delete(sessionId: string): Promise<void> {
+      unwrap(await ipcRenderer.invoke("session:delete", { sessionId }));
+    },
+    watch(sessionId: string, onEvent: (e: SessionEvent) => void): () => void {
+      let subscriptionId: string | undefined;
       const listener = (
-        _event: Electron.IpcRendererEvent,
-        payload: CursorChatEvent & {
-          requestId: string;
-        },
-      ): void => {
-        if (payload.requestId !== requestId) return;
-        onEvent(payload);
-        if (payload.type === "done" || payload.type === "error") {
-          ipcRenderer.removeListener("cursor-chat:event", listener);
+        _e: Electron.IpcRendererEvent,
+        payload: { sessionId: string; event: SessionEvent },
+      ) => {
+        if (payload.sessionId !== sessionId) return;
+        onEvent(payload.event);
+      };
+      const deletedListener = (
+        _e: Electron.IpcRendererEvent,
+        payload: { sessionId: string },
+      ) => {
+        if (payload.sessionId !== sessionId) return;
+        // best effort — surface a deletion event upstream via a synthetic wrapper
+        onEvent({ type: "error", turnId: "", message: "session deleted", code: "DELETED" } as SessionEvent);
+      };
+      ipcRenderer.on("session:event", listener);
+      ipcRenderer.on("session:deleted", deletedListener);
+      ipcRenderer
+        .invoke("session:watch", { sessionId })
+        .then((r) => {
+          subscriptionId = unwrap<{ subscriptionId: string }>(r).subscriptionId;
+        })
+        .catch(() => {});
+      return () => {
+        ipcRenderer.removeListener("session:event", listener);
+        ipcRenderer.removeListener("session:deleted", deletedListener);
+        if (subscriptionId) {
+          ipcRenderer.invoke("session:unwatch", { subscriptionId }).catch(() => {});
         }
       };
-
-      ipcRenderer.on("cursor-chat:event", listener);
-      return (ipcRenderer.invoke("cursor-chat:send", { requestId, prompt }) as Promise<CursorChatResult>).finally(() => {
-        ipcRenderer.removeListener("cursor-chat:event", listener);
-      });
-    },
-  },
-  flowbuilder: {
-    listSessions(): Promise<FlowbuilderListSessionsResult> {
-      return ipcRenderer.invoke("flowbuilder:list-sessions") as Promise<FlowbuilderListSessionsResult>;
-    },
-    readSession(sessionId: string): Promise<FlowbuilderReadSessionResult> {
-      return ipcRenderer.invoke("flowbuilder:read-session", { sessionId }) as Promise<FlowbuilderReadSessionResult>;
     },
   },
 };
@@ -149,6 +92,7 @@ if (process.contextIsolated) {
     console.error(error);
   }
 } else {
-  window.electron = electronAPI;
-  window.api = api;
+  // sandbox: true normally implies contextIsolated, but keep parity
+  (window as unknown as { electron: typeof electronAPI }).electron = electronAPI;
+  (window as unknown as { api: typeof api }).api = api;
 }

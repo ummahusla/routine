@@ -1,6 +1,12 @@
 /// <reference types="vite/client" />
 
 import type { ElectronAPI } from "@electron-toolkit/preload";
+import type {
+  PersistedTurn,
+  SessionEvent,
+  SessionMetadata,
+  TurnResult,
+} from "@flow-build/core";
 
 type CursorChatEvent =
   | {
@@ -118,6 +124,16 @@ declare global {
       flowbuilder: {
         listSessions(): Promise<FlowbuilderListSessionsResult>;
         readSession(sessionId: string): Promise<FlowbuilderReadSessionResult>;
+      };
+      session: {
+        list(): Promise<SessionMetadata[]>;
+        create(opts?: { title?: string; model?: string }): Promise<{ sessionId: string }>;
+        open(sessionId: string): Promise<{ metadata: SessionMetadata; turns: PersistedTurn[] }>;
+        send(sessionId: string, prompt: string): Promise<TurnResult>;
+        cancel(sessionId: string): Promise<void>;
+        rename(sessionId: string, title: string): Promise<void>;
+        delete(sessionId: string): Promise<void>;
+        watch(sessionId: string, onEvent: (e: SessionEvent) => void): () => void;
       };
     };
   }
