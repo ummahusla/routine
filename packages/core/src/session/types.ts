@@ -1,3 +1,4 @@
+import type { HarnessError } from "../errors.js";
 import type { HarnessEvent, Logger, Plugin, RetryOptions } from "../types.js";
 
 export type Usage = { inputTokens: number; outputTokens: number };
@@ -22,6 +23,7 @@ export type TurnResult = {
   status: TurnStatus;
   finalText: string;
   usage?: Usage;
+  error?: HarnessError;
 };
 
 export type SessionMetadata = {

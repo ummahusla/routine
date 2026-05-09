@@ -63,9 +63,9 @@ export async function runPrompt(opts: RunOptions): Promise<RunResult> {
 
     if (result.status === "failed_to_start") {
       // Legacy runPrompt let AuthError/NetworkError/etc. propagate; Session
-      // captured the original HarnessError on `lastError` so we can rethrow
-      // it with the right class.
-      throw session.lastError ?? new Error("agent failed to start");
+      // surfaces the original HarnessError on `result.error` so we can
+      // rethrow it with the right class.
+      throw result.error ?? new Error("agent failed to start");
     }
 
     // Preserve legacy contract: synthesize status:done after run.

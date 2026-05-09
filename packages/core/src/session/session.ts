@@ -75,12 +75,6 @@ export class Session {
     | { abort: AbortController; runCancel?: () => Promise<void> }
     | undefined;
   private closed = false;
-  /**
-   * Last `HarnessError` produced by a `failed_to_start` turn. The legacy
-   * `runPrompt` wrapper reads this to re-throw the original error class
-   * (Session.send catches and returns a result instead of throwing).
-   */
-  lastError: HarnessError | undefined;
 
   constructor(opts: SessionInternalOptions) {
     this.baseDir = opts.baseDir;
@@ -101,9 +95,6 @@ export class Session {
 
   async send(prompt: string, opts: SendTurnOptions = {}): Promise<TurnResult> {
     if (this.activeTurn) throw new SessionBusyError(this.sessionId);
-    // Clear any error captured by a prior turn so callers can read
-    // `lastError` after this send to detect *this* turn's outcome.
-    this.lastError = undefined;
     const abort = new AbortController();
     if (opts.signal) {
       const onAbort = (): void => abort.abort();
@@ -133,6 +124,7 @@ export class Session {
     let finalText = "";
     let status: TurnStatus = "completed";
     let usage: Usage | undefined;
+    let midStreamError: HarnessError | undefined;
 
     const host = new PluginHost(this.plugins);
     const ctx: RuntimeContext = {
@@ -247,9 +239,10 @@ export class Session {
         );
       } catch (e) {
         // mapToHarnessError has already run inside withRetry's body; e is a
-        // HarnessError. Stash it so callers like runPrompt can re-throw
-        // the original error class instead of just the persisted message.
-        this.lastError = mapToHarnessError(e);
+        // HarnessError. Surface it on the TurnResult so callers like
+        // runPrompt can re-throw the original error class instead of just
+        // the persisted message.
+        const startError = mapToHarnessError(e);
         const message = (e as Error).message ?? String(e);
         const code = (e as { code?: string }).code;
         emit(
@@ -273,7 +266,7 @@ export class Session {
           },
         );
         await this.updateMeta({ turnStatus: "failed_to_start" });
-        return { turnId, status: "failed_to_start", finalText: "" };
+        return { turnId, status: "failed_to_start", finalText: "", error: startError };
       }
 
       this.activeTurn.runCancel = (): Promise<void> =>
@@ -296,7 +289,6 @@ export class Session {
         },
       );
 
-      let midStreamError: HarnessError | undefined;
       try {
         try {
           for await (const msg of live.run.stream()) {
@@ -376,7 +368,6 @@ export class Session {
         }
       }
       if (midStreamError) {
-        this.lastError = midStreamError;
         // Persist an error event so the JSONL log captures the failure,
         // matching the failed_to_start path. The outer finally will still
         // emit turn_end below before the rethrow propagates.
@@ -415,11 +406,11 @@ export class Session {
     );
     await this.updateMeta({ turnStatus: status, ...(usage ? { usage } : {}) });
 
-    if (this.lastError && status === "failed") {
+    if (midStreamError && status === "failed") {
       // Mid-stream HarnessError captured above. Persist + emit are done;
       // surface the original error class to the caller so they can
       // `instanceof` it (legacy runPrompt contract).
-      throw this.lastError;
+      throw midStreamError;
     }
 
     return { turnId, status, finalText, ...(usage ? { usage } : {}) };
