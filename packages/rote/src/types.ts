@@ -38,5 +38,13 @@ export type RotePluginOptions = {
   rulesFilePath?: string;
   enableHints?: boolean;
   enableProbe?: boolean;
+  /**
+   * Start an MCP server exposing `rote_exec` so the agent can run rote
+   * commands via MCP instead of the SDK's bash tool. Workaround for the
+   * SDK bash tool hanging on rote invocations. Defaults to true.
+   */
+  enableExecMcp?: boolean;
+  /** Default per-call timeout (ms) for the rote_exec MCP tool. */
+  execTimeoutMs?: number;
   exec?: ExecFn;
 };

@@ -16,6 +16,33 @@ rote sits in front of your adapters — both MCP servers and CLI-based tools. In
 adapter tools directly, use rote — it checks for reusable crystallized flows first, caches
 responses, and tracks what works.
 
+## TOP PRIORITY (flow-build harness): use the `rote_exec` MCP tool, NOT bash
+
+When running inside the flow-build harness, the host's bash shell tool **hangs indefinitely on
+rote invocations** (a known interaction bug between rote and the underlying SDK shell). It will
+issue `tool_start`, never produce `tool_end`, and the turn stalls forever.
+
+The harness ships a dedicated MCP server `rote-exec` that exposes a single tool:
+
+- **`rote_exec`** — runs a rote command via spawned subprocess and returns
+  `{ ok, stdout, stderr, exitCode, durationMs, timedOut, truncated }` as JSON.
+
+Always call rote through this MCP tool. Do NOT call rote via the bash shell tool.
+
+```
+mcp tool call: rote-exec / rote_exec
+arguments:
+  command: 'rote flow search "polymarket"'
+  timeoutMs: 30000   # optional; default 60000, max 600000
+  cwd: '/path'       # optional; defaults to session workspace
+```
+
+The tool only accepts commands beginning with `rote ` — it is rote-only by design.
+Output is capped at 1 MB (the `truncated` flag is set if you hit the cap).
+
+If you find yourself about to issue `bash { command: "rote ..." }` — STOP and use `rote_exec`
+instead. Every code path, every example below, every `rote ...` line — route through `rote_exec`.
+
 ## CRITICAL: Prefer rote over direct adapter calls
 
 **If you have called any MCP server or CLI tool directly in this project before, STOP.**
