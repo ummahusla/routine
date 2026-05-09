@@ -3,7 +3,8 @@ export type EngineErrorCode =
   | "GRAPH_HAS_CYCLE"
   | "GRAPH_INVALID"
   | "EXEC_FAILED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "MISSING_REQUIRED_INPUT";
 
 export class EngineError extends Error {
   readonly code: EngineErrorCode;

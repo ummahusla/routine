@@ -80,4 +80,5 @@ export type CreateRunOptions = {
   cursorClient: CursorClient;
   roteCmd?: string;
   signal?: AbortSignal;
+  inputs?: Record<string, unknown>;
 };

@@ -47,7 +47,9 @@ export type UnwatchInput = z.infer<typeof UnwatchInputSchema>;
 
 const RunIdSchema = z.string().min(1).max(64);
 
-export const RunExecuteInputSchema = z.object({ sessionId: SessionIdSchema }).strict();
+export const RunExecuteInputSchema = z
+  .object({ sessionId: SessionIdSchema, inputs: z.record(z.unknown()).optional() })
+  .strict();
 export const RunCancelInputSchema = z.object({ sessionId: SessionIdSchema, runId: RunIdSchema }).strict();
 export const RunListInputSchema = z.object({ sessionId: SessionIdSchema }).strict();
 export const RunReadInputSchema = z.object({ sessionId: SessionIdSchema, runId: RunIdSchema }).strict();

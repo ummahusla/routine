@@ -2,35 +2,40 @@
   "schemaVersion": 1,
   "nodes": [
     {
-      "id": "ticket_input",
+      "id": "inbox_input",
       "type": "input",
       "value": {
-        "source": "zendesk",
-        "ticketId": "ZD-1024",
-        "subject": "Enterprise workspace cannot invite teammates"
+        "source": "gmail",
+        "query": "in:inbox is:unread newer_than:1d",
+        "count": 10,
+        "date": "today"
       }
     },
     {
       "id": "severity_branch",
       "type": "branch",
-      "cond": "ticket.priority === 'urgent' || ticket.accountTier === 'enterprise'"
+      "cond": "email.from.endsWith('@enterprise.com') || /urgent|outage|p0/i.test(email.subject)"
     },
     {
-      "id": "urgent_path",
+      "id": "urgent_send",
       "type": "flow",
-      "flow": "support/escalate-ticket",
+      "flow": "gmail/send-email",
       "params": {
-        "channel": "slack",
-        "team": "on-call"
+        "to": "oncall@example.com",
+        "subject": "[Escalation] Enterprise inquiry needs immediate response",
+        "body": "<p>An enterprise customer email matched the urgency rule. Original subject: <b>${email.subject}</b>. From: ${email.from}.</p>",
+        "content_type": "text/html"
       }
     },
     {
-      "id": "routine_path",
+      "id": "routine_draft",
       "type": "flow",
-      "flow": "support/draft-reply",
+      "flow": "gmail/create-draft-email",
       "params": {
-        "tone": "warm",
-        "includeLinks": true
+        "to": "${email.from}",
+        "subject": "Re: ${email.subject}",
+        "body": "Hi there,\n\nThanks for reaching out — we've got your message and a teammate will follow up shortly.\n\nBest,\nSupport",
+        "content_type": "text/plain"
       }
     },
     {
@@ -48,23 +53,23 @@
   ],
   "edges": [
     {
-      "from": "ticket_input",
+      "from": "inbox_input",
       "to": "severity_branch"
     },
     {
       "from": "severity_branch",
-      "to": "urgent_path"
+      "to": "urgent_send"
     },
     {
       "from": "severity_branch",
-      "to": "routine_path"
+      "to": "routine_draft"
     },
     {
-      "from": "urgent_path",
+      "from": "urgent_send",
       "to": "merge_outcome"
     },
     {
-      "from": "routine_path",
+      "from": "routine_draft",
       "to": "merge_outcome"
     },
     {

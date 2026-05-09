@@ -84,9 +84,12 @@ export function createRun(opts: CreateRunOptions): Run {
       const input = inputsFor(n.id);
       let env: Envelope;
       switch (n.type) {
-        case "input":
-          env = executeInput(n);
+        case "input": {
+          const overlay = opts.inputs;
+          const has = !!overlay && Object.prototype.hasOwnProperty.call(overlay, n.id);
+          env = executeInput(n, has ? { hasOverride: true, value: overlay![n.id] } : undefined);
           break;
+        }
         case "output":
           env = executeOutput(input);
           break;

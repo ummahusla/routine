@@ -22,9 +22,9 @@ export function defaultPlugins(opts: DefaultPluginsOptions): Plugin[] {
     createFlowbuilderPlugin({
       baseDir: opts.baseDir,
       sessionId: opts.sessionId,
-      runStarter: opts.runStarter,
-      runResultReader: opts.runResultReader,
-      waitForRunEnd: opts.waitForRunEnd,
+      ...(opts.runStarter ? { runStarter: opts.runStarter } : {}),
+      ...(opts.runResultReader ? { runResultReader: opts.runResultReader } : {}),
+      ...(opts.waitForRunEnd ? { waitForRunEnd: opts.waitForRunEnd } : {}),
     }),
   ];
 }

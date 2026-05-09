@@ -12,6 +12,7 @@ export type MakeRun = (opts: {
   baseDir: string;
   state: State;
   cursorClient: CursorClient;
+  inputs?: Record<string, unknown>;
 }) => Run;
 
 export type RunRegistryDeps = {
@@ -33,13 +34,14 @@ export class RunRegistry {
     this.deps = deps;
   }
 
-  async start(sessionId: string): Promise<string> {
+  async start(sessionId: string, inputs?: Record<string, unknown>): Promise<string> {
     const state = await this.deps.loadState(sessionId);
     const run = this.deps.makeRun({
       sessionId,
       baseDir: this.deps.baseDir,
       state,
       cursorClient: this.deps.cursorClient,
+      ...(inputs ? { inputs } : {}),
     });
     this.runs.set(run.runId, run);
     void this.pump(run);

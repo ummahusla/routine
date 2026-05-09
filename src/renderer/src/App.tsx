@@ -19,9 +19,11 @@ import type {
   FlowNode,
   FlowbuilderManifest,
   FlowbuilderSessionSummary,
+  FlowbuilderState,
   PaletteItem,
   RunState,
 } from "./types";
+import { RunInputDialog, type RequiredInputSpec } from "./components/RunInputDialog";
 
 // Static design constants (replaces the previous tweakable values)
 const ACCENT = "#5fc88f";
@@ -102,6 +104,8 @@ export function App() {
   const [baseDir, setBaseDir] = useState("");
   const [manifest, setManifest] = useState<FlowbuilderManifest | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
+  const [fbState, setFbState] = useState<FlowbuilderState | null>(null);
+  const [pendingInputs, setPendingInputs] = useState<RequiredInputSpec[] | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadingSession, setLoadingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +223,7 @@ export function App() {
         setSelectedSessionId(null);
         setFlow(null);
         setManifest(null);
+        setFbState(null);
         setError(result.error);
         return;
       }
@@ -232,6 +237,7 @@ export function App() {
       if (!nextId) {
         setFlow(null);
         setManifest(null);
+        setFbState(null);
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unknown flowbuilder session list error");
@@ -239,6 +245,7 @@ export function App() {
       setSelectedSessionId(null);
       setFlow(null);
       setManifest(null);
+      setFbState(null);
     } finally {
       setLoadingSessions(false);
     }
@@ -265,6 +272,7 @@ export function App() {
       setBuilding(true);
       setFlow(null);
       setManifest(null);
+      setFbState(null);
       setFocusId(null);
       setRunState({});
     }
@@ -279,6 +287,7 @@ export function App() {
           return;
         }
         setManifest(result.manifest);
+        setFbState(result.state);
         setFlow(flowbuilderStateToFlow(result.manifest, result.state));
       })
       .catch((readError: unknown) => {
@@ -333,6 +342,7 @@ export function App() {
     setSelectedSessionId(null);
     setManifest(null);
     setFlow(null);
+    setFbState(null);
     setBuilding(false);
     setRunning(false);
     setRunState({});
@@ -357,6 +367,7 @@ export function App() {
     setBuilding(true);
     setRunState({});
     setFlow(null);
+    setFbState(null);
 
     try {
       const { sessionId } = await window.api.session.create({ title: text.slice(0, 80), model });
@@ -523,7 +534,24 @@ export function App() {
   // simulated handleRun for Play-button-initiated executions; the simulated
   // runner is still used by the chat-driven /run command and the build-time
   // animation, since those don't necessarily target the engine yet.
-  async function handlePlay(): Promise<void> {
+  function handlePlay(): void {
+    if (!selectedSessionId || !fbState) return;
+    const missing: RequiredInputSpec[] = fbState.nodes
+      .filter((n): n is Extract<typeof n, { type: "input" }> => n.type === "input")
+      .filter((n) => n.required && (n.value === undefined || n.value === null || n.value === ""))
+      .map((n) => ({
+        id: n.id,
+        label: n.label || n.id,
+        description: n.description,
+      }));
+    if (missing.length > 0) {
+      setPendingInputs(missing);
+      return;
+    }
+    void launchRun();
+  }
+
+  async function launchRun(inputs?: Record<string, unknown>): Promise<void> {
     if (!selectedSessionId) return;
     setRunStatuses(new Map());
     setNodeStreams(new Map());
@@ -536,7 +564,9 @@ export function App() {
       return cleared;
     });
 
-    const r = await window.api.run.execute({ sessionId: selectedSessionId });
+    const r = await window.api.run.execute(
+      inputs ? { sessionId: selectedSessionId, inputs } : { sessionId: selectedSessionId },
+    );
     if (!r.ok) {
       setError(r.error);
       return;
@@ -798,7 +828,7 @@ export function App() {
           flow={flow}
           onHome={handleNew}
           onTidy={handleTidy}
-          onPlay={() => void handlePlay()}
+          onPlay={() => handlePlay()}
           canRun={canRun}
           running={activeRunId !== null}
         />
@@ -946,6 +976,16 @@ export function App() {
           </div>
         )}
       </main>
+      {pendingInputs && (
+        <RunInputDialog
+          inputs={pendingInputs}
+          onCancel={() => setPendingInputs(null)}
+          onSubmit={(values) => {
+            setPendingInputs(null);
+            void launchRun(values);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -100,6 +100,33 @@ type FlowbuilderReadSessionResult =
       error: string;
     };
 
+type FlowInfoParameterLocal = {
+  name: string;
+  type?: string;
+  required?: boolean;
+  default?: string | number | boolean | null;
+  description?: string;
+};
+
+type FlowInfoResultLocal =
+  | {
+      ok: true;
+      flowRef: string;
+      tier: string;
+      name: string;
+      description: string;
+      requiresEndpoints: string[];
+      parameters: FlowInfoParameterLocal[];
+      tags: string[];
+      flowType?: string;
+      kind?: string;
+    }
+  | {
+      ok: false;
+      flowRef: string;
+      error: string;
+    };
+
 type RunIpcOk<T> = { ok: true } & T;
 type RunIpcErr = { ok: false; code: string; error: string };
 
@@ -112,6 +139,7 @@ type RunListEntry = {
   error?: string;
 };
 
+
 declare global {
   interface Window {
     electron: ElectronAPI;
@@ -119,6 +147,7 @@ declare global {
       flowbuilder: {
         listSessions(): Promise<FlowbuilderListSessionsResult>;
         readSession(sessionId: string): Promise<FlowbuilderReadSessionResult>;
+        getFlowInfo(flowRef: string): Promise<FlowInfoResultLocal>;
       };
       session: {
         list(): Promise<SessionMetadata[]>;
@@ -139,7 +168,7 @@ declare global {
         setDefaultModel(model: string): Promise<void>;
       };
       run: {
-        execute(input: { sessionId: string }): Promise<RunIpcOk<{ runId: string }> | RunIpcErr>;
+        execute(input: { sessionId: string; inputs?: Record<string, unknown> }): Promise<RunIpcOk<{ runId: string }> | RunIpcErr>;
         cancel(input: { sessionId: string; runId: string }): Promise<RunIpcOk<{}> | RunIpcErr>;
         list(input: { sessionId: string }): Promise<RunIpcOk<{ runs: RunListEntry[] }> | RunIpcErr>;
         read(input: { sessionId: string; runId: string }): Promise<unknown>;

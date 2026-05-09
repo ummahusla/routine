@@ -32,7 +32,7 @@ export function registerRunIpc(ipc: IpcMain, deps: RunIpcDeps): void {
     const parsed = RunExecuteInputSchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error.message);
     try {
-      const runId = await deps.registry.start(parsed.data.sessionId);
+      const runId = await deps.registry.start(parsed.data.sessionId, parsed.data.inputs);
       return { ok: true, runId };
     } catch (e) {
       return fail(e);

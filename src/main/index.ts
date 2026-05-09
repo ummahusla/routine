@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain } from "electron";
 import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import {
@@ -93,11 +94,12 @@ const runRegistry = new RunRegistry({
     validateRefIntegrity(state);
     return state;
   },
-  makeRun: ({ sessionId, baseDir, state, cursorClient: cc }) =>
-    createRun({ sessionId, baseDir, state, cursorClient: cc }),
+  makeRun: ({ sessionId, baseDir, state, cursorClient: cc, inputs }) =>
+    createRun({ sessionId, baseDir, state, cursorClient: cc, ...(inputs ? { inputs } : {}) }),
 });
 
-const runStarter = (sessionId: string) => runRegistry.start(sessionId);
+const runStarter = (sessionId: string, inputs?: Record<string, unknown>) =>
+  runRegistry.start(sessionId, inputs);
 const runResultReader = (sessionId: string, runId: string) =>
   readRunResult(getBaseDir(), sessionId, runId);
 const waitForRunEnd = (runId: string, timeoutMs: number) =>
@@ -256,6 +258,55 @@ app.whenReady().then(() => {
       }
     },
   );
+
+  ipcMain.handle("flowbuilder:get-flow-info", async (_e, { flowRef }: { flowRef: string }) => {
+    const roteFlowsRoot =
+      process.env.ROTE_FLOWS_ROOT || join(process.env.ROTE_HOME || join(homedir(), ".rote"), "flows");
+    const slug = flowRef.includes("/") ? flowRef.split("/").slice(1).join("/") : flowRef;
+    const tiers = ["local", "workspace", "bootstrap"];
+    for (const tier of tiers) {
+      const manifestPath = join(roteFlowsRoot, tier, slug, "manifest.json");
+      if (!existsSync(manifestPath)) continue;
+      try {
+        const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+          name?: string;
+          description?: string;
+          metadata?: {
+            requires_endpoints?: string[];
+            parameters?: Array<{
+              name: string;
+              type?: string;
+              required?: boolean;
+              default?: string | number | boolean | null;
+              description?: string;
+            }>;
+            tags?: string[];
+            flow_type?: string;
+            kind?: string;
+          };
+        };
+        return {
+          ok: true as const,
+          flowRef,
+          tier,
+          name: raw.name ?? slug,
+          description: raw.description ?? "",
+          requiresEndpoints: raw.metadata?.requires_endpoints ?? [],
+          parameters: raw.metadata?.parameters ?? [],
+          tags: raw.metadata?.tags ?? [],
+          flowType: raw.metadata?.flow_type,
+          kind: raw.metadata?.kind,
+        };
+      } catch (error) {
+        return {
+          ok: false as const,
+          flowRef,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+    return { ok: false as const, flowRef, error: `flow manifest not found for '${flowRef}'` };
+  });
 
   createWindow();
   app.on("activate", () => {

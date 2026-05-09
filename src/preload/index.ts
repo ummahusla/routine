@@ -30,6 +30,9 @@ const api = {
     async readSession(sessionId: string) {
       return ipcRenderer.invoke("flowbuilder:read-session", { sessionId });
     },
+    async getFlowInfo(flowRef: string) {
+      return ipcRenderer.invoke("flowbuilder:get-flow-info", { flowRef });
+    },
   },
   session: {
     async list(): Promise<SessionMetadata[]> {
@@ -116,7 +119,7 @@ const api = {
     },
   },
   run: {
-    execute: (input: { sessionId: string }) =>
+    execute: (input: { sessionId: string; inputs?: Record<string, unknown> }) =>
       ipcRenderer.invoke("run:execute", input) as Promise<
         { ok: true; runId: string } | { ok: false; code: string; error: string }
       >,
