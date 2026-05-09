@@ -66,7 +66,15 @@ export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
                     </div>
                   )}
                   {turn.status !== "completed" && turn.status !== "running" && (
-                    <div className="msg-end">[turn {turn.status}]</div>
+                    <div className="msg-end">
+                      [turn {turn.status}]
+                      {turn.error && (
+                        <div className="msg-error">
+                          {turn.error.code ? `${turn.error.code}: ` : ""}
+                          {turn.error.message}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

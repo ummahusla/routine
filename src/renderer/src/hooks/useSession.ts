@@ -66,6 +66,8 @@ function applyEvent(turns: PersistedTurn[], ev: SessionEvent): PersistedTurn[] {
       if (ev.usage) t.usage = ev.usage;
       break;
     case "error":
+      t.error = { message: ev.message, ...(ev.code ? { code: ev.code } : {}) };
+      break;
     case "status":
     default:
       break;

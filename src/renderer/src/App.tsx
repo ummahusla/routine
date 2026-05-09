@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { FLOW_TEMPLATES, matchTemplate } from "./data/flowTemplates";
 import { NODE_W, NODE_H, GAP_X } from "./data/constants";
-import { cloneFlow, topoLayers, nodePos } from "./utils/flow";
+import { topoLayers, nodePos } from "./utils/flow";
 import { flowbuilderStateToFlow } from "./utils/flowbuilder";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -16,7 +15,6 @@ import type {
   Flow,
   FlowEdge,
   FlowNode,
-  FlowTemplateId,
   FlowbuilderManifest,
   FlowbuilderSessionSummary,
   PaletteItem,
@@ -88,7 +86,6 @@ function SessionPanel({
 export function App() {
   const [sessions, setSessions] = useState<FlowbuilderSessionSummary[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [localFlowId, setLocalFlowId] = useState<FlowTemplateId | null>(null);
   const [baseDir, setBaseDir] = useState("");
   const [manifest, setManifest] = useState<FlowbuilderManifest | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
@@ -163,7 +160,6 @@ export function App() {
     setManifest(null);
     setFocusId(null);
     setRunState({});
-    setLocalFlowId(null);
 
     window.api.flowbuilder
       .readSession(selectedSessionId)
@@ -204,7 +200,6 @@ export function App() {
 
   function handleNew(): void {
     setSelectedSessionId(null);
-    setLocalFlowId(null);
     setManifest(null);
     setFlow(null);
     setBuilding(false);
@@ -227,9 +222,6 @@ export function App() {
   }, []);
 
   async function handleSubmit(text: string): Promise<void> {
-    const tplId = matchTemplate(text);
-    const tpl = FLOW_TEMPLATES[tplId];
-    setLocalFlowId(tplId);
     setManifest(null);
     setBuilding(true);
     setRunState({});
@@ -242,12 +234,8 @@ export function App() {
       void loadSessions(sessionId);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create session");
-    }
-
-    window.setTimeout(() => {
-      setFlow(cloneFlow(tpl));
       setBuilding(false);
-    }, 900);
+    }
   }
 
   // Re-run the auto-layout: drop any user-set x/y coordinates and recompute
@@ -500,7 +488,7 @@ export function App() {
       <Sidebar
         sessions={sessions}
         selectedId={selectedSessionId}
-        localActive={Boolean(localFlowId || (!selectedSessionId && !flow))}
+        localActive={!selectedSessionId && !flow}
         loading={loadingSessions}
         error={error}
         baseDir={baseDir}

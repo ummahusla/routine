@@ -72,6 +72,7 @@ export function reduce(events: LineEnvelope[]): PersistedTurn[] {
         break;
       case "error":
         // status stays — turn_end (failed/failed_to_start) carries the verdict
+        t.error = { message: e.message, ...(e.code ? { code: e.code } : {}) };
         break;
     }
   }

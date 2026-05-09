@@ -51,7 +51,7 @@ function configureCursorRipgrepPath(): void {
 }
 
 function getBaseDir(): string {
-  return join(app.getPath("userData"), "flow-build");
+  return app.getPath("userData");
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -137,7 +137,7 @@ app.whenReady().then(() => {
             const state = StateSchema.parse(JSON.parse(readFileSync(statePath, "utf8")));
             validateRefIntegrity(state);
             return {
-              id: manifest.id,
+              id: entry.name,
               name: manifest.name,
               description: manifest.description,
               createdAt: manifest.createdAt,
@@ -172,11 +172,6 @@ app.whenReady().then(() => {
         const manifest = ManifestSchema.parse(
           JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")),
         );
-        if (manifest.id !== sessionId) {
-          throw new Error(
-            `manifest id ${manifest.id} does not match directory ${sessionId}`,
-          );
-        }
         const state = StateSchema.parse(
           JSON.parse(readFileSync(join(dir, "state.json"), "utf8")),
         );

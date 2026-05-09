@@ -54,6 +54,7 @@ export type PersistedTurn = {
   };
   status: TurnStatus | "running";
   usage?: Usage;
+  error?: { message: string; code?: string };
 };
 
 export type SendTurnOptions = {
