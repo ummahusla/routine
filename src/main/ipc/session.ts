@@ -1,5 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent, WebContents } from "electron";
 import type {
+  SendTurnOptions,
   Session,
   SessionEvent,
   SessionMetadata,
@@ -78,7 +79,7 @@ export function registerSessionIpc(ipc: IpcMain, deps: IpcDeps): void {
     if (!parsed.success) return invalid(parsed.error.message);
     try {
       const session = await deps.registry.open(parsed.data.sessionId);
-      const sendOpts: { model?: string; onEvent: (ev: SessionEvent) => void } = {
+      const sendOpts: SendTurnOptions = {
         onEvent: (ev: SessionEvent) => deps.registry.fanout(parsed.data.sessionId, ev),
       };
       if (parsed.data.model) sendOpts.model = parsed.data.model;
