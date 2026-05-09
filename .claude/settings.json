@@ -46,7 +46,9 @@
       "Read(//private/tmp/design-pkg8/flowbuild/project/**)",
       "Bash(pnpm typecheck *)",
       "Bash(tsc --noEmit)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Read(//Users/arina/.flowbuild/**)",
+      "Read(//Users/arina/Library/Application Support/flow-build/sessions/**)"
     ]
   }
 }

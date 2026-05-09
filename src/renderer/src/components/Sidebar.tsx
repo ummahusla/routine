@@ -109,7 +109,7 @@ export function Sidebar({
         <div className="sb-mark">
           <Logo />
         </div>
-        <div className="sb-brand-name">FlowBuild</div>
+        <div className="sb-brand-name">Routine</div>
         <div className="sb-brand-tag">beta</div>
         {canToggleCollapse && (
           <button
@@ -156,7 +156,7 @@ export function Sidebar({
       </div>
 
       <div className="sb-section">
-        <div className="sb-heading">Flowbuilder sessions</div>
+        <div className="sb-heading">Routine sessions</div>
         {loading && <div className="sb-muted">Reading manifests from disk...</div>}
         {!loading && error && <div className="sb-error">{error}</div>}
         {!loading && !error && filtered.length === 0 && (

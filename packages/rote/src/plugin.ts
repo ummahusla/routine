@@ -1,4 +1,10 @@
-import type { HarnessEvent, Plugin, RuntimeContext, ToolCallSnapshot } from "@flow-build/core";
+import type {
+  HarnessEvent,
+  McpServerConfig,
+  Plugin,
+  RuntimeContext,
+  ToolCallSnapshot,
+} from "@flow-build/core";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { defaultExec } from "./default-exec.js";
@@ -11,12 +17,14 @@ import {
   extractCommand,
 } from "./intercept/bypass-patterns.js";
 import { buildHintEvent } from "./intercept/hint.js";
+import { startRoteMcpServer, type RoteMcpHandle } from "./mcp-server.js";
 import type { RoteFacts, RotePluginOptions } from "./types.js";
 
 const DEFAULT_RULES_PATH = ".cursor/rules/.flow-build-rote.mdc";
 const DEFAULT_TIMEOUT_MS = 1500;
 const STATE_FACTS_KEY = "rote";
 const STATE_TOOL_ARGS_KEY = "rote:lastToolArgs";
+const STATE_MCP_HANDLE_KEY = "rote:mcpHandle";
 
 function getRoteHome(): string {
   return process.env.ROTE_HOME ?? join(homedir(), ".rote");
@@ -40,6 +48,8 @@ export function createRotePlugin(opts: RotePluginOptions = {}): Plugin {
   const probeTimeoutMs = opts.probeTimeoutMs ?? DEFAULT_TIMEOUT_MS;
   const enableProbe = opts.enableProbe ?? true;
   const enableHints = opts.enableHints ?? true;
+  const enableExecMcp = opts.enableExecMcp ?? true;
+  const execTimeoutMs = opts.execTimeoutMs;
   const rulesPath = opts.rulesFilePath ?? DEFAULT_RULES_PATH;
   const patterns = opts.hintBypassPatterns ?? defaultBypassPatterns;
   const exec = opts.exec ?? defaultExec;
@@ -81,6 +91,26 @@ export function createRotePlugin(opts: RotePluginOptions = {}): Plugin {
         ctx.logger.warn("rote binary not found", { bin });
       }
       ctx.state.set(STATE_FACTS_KEY, { facts });
+
+      if (enableExecMcp) {
+        const existing = ctx.state.get(STATE_MCP_HANDLE_KEY) as
+          | RoteMcpHandle
+          | undefined;
+        if (!existing) {
+          try {
+            const handle = await startRoteMcpServer({
+              bin,
+              defaultCwd: ctx.cwd,
+              ...(execTimeoutMs !== undefined ? { defaultTimeoutMs: execTimeoutMs } : {}),
+            });
+            ctx.state.set(STATE_MCP_HANDLE_KEY, handle);
+          } catch (cause) {
+            ctx.logger.warn("rote_exec mcp server failed to start", {
+              cause: String(cause),
+            });
+          }
+        }
+      }
       return { facts: facts as unknown as Record<string, unknown> };
     },
 
@@ -98,6 +128,12 @@ export function createRotePlugin(opts: RotePluginOptions = {}): Plugin {
     async promptPrefix(ctx) {
       const facts = getFacts(ctx);
       return renderPrefix(facts);
+    },
+
+    async provideMcpServers(ctx): Promise<Record<string, McpServerConfig>> {
+      const handle = ctx.state.get(STATE_MCP_HANDLE_KEY) as RoteMcpHandle | undefined;
+      if (!handle) return {};
+      return { "rote-exec": { type: "http", url: handle.url } };
     },
 
     async onToolCall(call: ToolCallSnapshot, ctx) {
@@ -121,6 +157,20 @@ export function createRotePlugin(opts: RotePluginOptions = {}): Plugin {
       const m = classifyBypass(e.name, cmd, patterns);
       if (!m) return undefined;
       return [e, buildHintEvent(m)];
+    },
+
+    async cleanup(ctx) {
+      const handle = ctx.state.get(STATE_MCP_HANDLE_KEY) as RoteMcpHandle | undefined;
+      if (handle) {
+        try {
+          await handle.close();
+        } catch (cause) {
+          ctx.logger.warn("rote_exec mcp server close failed", {
+            cause: String(cause),
+          });
+        }
+        ctx.state.delete(STATE_MCP_HANDLE_KEY);
+      }
     },
   };
 }

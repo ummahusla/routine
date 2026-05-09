@@ -26,7 +26,21 @@ export function ToolCallsSection({ calls }: Props): JSX.Element | null {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className="tool-section-toggle">{open ? "▾" : "▸"}</span>
+        <span className="tool-section-toggle" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width={12}
+            height={12}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .12s" }}
+          >
+            <polyline points="9 6 15 12 9 18" />
+          </svg>
+        </span>
         <span className="tool-section-label">
           {calls.length} tool {calls.length === 1 ? "call" : "calls"}
         </span>

@@ -11,6 +11,26 @@ type ChatThreadProps = {
   onResize: (height: number) => void;
 };
 
+function statusMessage(
+  status: PersistedTurn["status"],
+  hasContent: boolean,
+): string {
+  switch (status) {
+    case "cancelled":
+      return hasContent ? "Response stopped" : "Response stopped before any output";
+    case "interrupted":
+      return hasContent
+        ? "Response was interrupted"
+        : "Response was interrupted before any output";
+    case "failed":
+      return "Response failed";
+    case "failed_to_start":
+      return "Couldn't start response";
+    default:
+      return `Turn ${status}`;
+  }
+}
+
 export function ChatThread({ turns, height, loading = false, onResize }: ChatThreadProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const lastTurn = turns[turns.length - 1];
@@ -61,7 +81,7 @@ export function ChatThread({ turns, height, loading = false, onResize }: ChatThr
               </div>
               <div className="msg msg-ai">
                 <div className="msg-body">
-                  <div className="msg-h">FlowBuild</div>
+                  <div className="msg-h">Routine</div>
                   <ToolCallsSection calls={turn.assistant.toolCalls} />
                   {turn.assistant.textBlocks.length > 0 && (
                     <div className="msg-text">
@@ -70,18 +90,20 @@ export function ChatThread({ turns, height, loading = false, onResize }: ChatThr
                       </ReactMarkdown>
                     </div>
                   )}
-                  {turn.status === "running" &&
-                    turn.assistant.textBlocks.length === 0 &&
-                    turn.assistant.toolCalls.length === 0 && (
-                      <div className="msg-typing" aria-label="Waiting for response">
-                        <span className="msg-typing-dot" />
-                        <span className="msg-typing-dot" />
-                        <span className="msg-typing-dot" />
-                      </div>
-                    )}
+                  {turn.status === "running" && (
+                    <div className="msg-typing" aria-label="Working">
+                      <span className="msg-typing-dot" />
+                      <span className="msg-typing-dot" />
+                      <span className="msg-typing-dot" />
+                    </div>
+                  )}
                   {turn.status !== "completed" && turn.status !== "running" && (
                     <div className="msg-end">
-                      [turn {turn.status}]
+                      {statusMessage(
+                        turn.status,
+                        turn.assistant.textBlocks.length > 0 ||
+                          turn.assistant.toolCalls.length > 0,
+                      )}
                       {turn.error && (
                         <div className="msg-error">
                           {turn.error.code ? `${turn.error.code}: ` : ""}

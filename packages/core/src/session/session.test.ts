@@ -219,6 +219,50 @@ describe("Session.send", () => {
     expect(existsSync(rulesPath)).toBe(false); // restored on close
   });
 
+  it("tool watchdog fires when tool_start has no matching tool_end within args.timeout + slack", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    // The fake's stream parks until cancel() resolves it. The watchdog
+    // calls live.run.cancel() when the deadline expires — that cancel
+    // resolves the park and lets the for-await loop see abort.signal.
+    let releaseStream!: () => void;
+    const streamPark = new Promise<void>((r) => (releaseStream = r));
+    const fa = makeFakeAgent({ waitResult: { status: "completed" } });
+    fa.run.cancel = vi.fn(async () => {
+      releaseStream();
+    });
+    fa.run.stream = async function* () {
+      yield {
+        type: "tool_call",
+        call_id: "c1",
+        name: "shell",
+        status: "running",
+        args: { command: 'rote flow search "x"', timeout: 100 },
+      };
+      await streamPark;
+    };
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({
+      baseDir: dir,
+      sessionId: "S1",
+      apiKey: "crsr_test",
+      retry: { attempts: 1 },
+    });
+    await expect(session.send("hi")).rejects.toThrow(/tool "shell" produced no result/);
+    expect(fa.run.cancel).toHaveBeenCalled();
+
+    const lines = readFileSync(eventsPath(dir, "S1"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const errLine = lines.find((l) => l.kind === "error");
+    expect(errLine?.message).toMatch(/tool "shell" produced no result/);
+    const lastLine = lines[lines.length - 1];
+    expect(lastLine.kind).toBe("turn_end");
+    expect(lastLine.status).toBe("failed");
+  }, 10_000);
+
   it("cancel mid-turn produces status=cancelled", async () => {
     initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
     let resolveStream!: () => void;

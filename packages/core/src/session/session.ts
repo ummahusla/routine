@@ -187,6 +187,20 @@ export class Session {
       }
     };
 
+    // Tool watchdog: tool_start without matching tool_end within
+    // (args.timeout || default) + slack means the SDK shell tool has
+    // hung (e.g. on rote invocations). When fired, abort the run and
+    // mark the turn failed so callers can recover instead of waiting
+    // forever. Declared here so the outer finally can clear leftovers.
+    const TOOL_WATCHDOG_DEFAULT_MS = 60_000;
+    const TOOL_WATCHDOG_SLACK_MS = 5_000;
+    const TOOL_WATCHDOG_MAX_MS = 600_000;
+    const toolWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
+    const clearAllToolWatchdogs = (): void => {
+      for (const t of toolWatchdogs.values()) clearTimeout(t);
+      toolWatchdogs.clear();
+    };
+
     try {
       // Per-turn plugin lifecycle.
       await host.runPreRun(ctx);
@@ -304,6 +318,44 @@ export class Session {
         },
       );
 
+      const armToolWatchdog = (
+        callId: string,
+        name: string,
+        argsObj: unknown,
+      ): void => {
+        const argTimeout =
+          argsObj && typeof argsObj === "object" && "timeout" in (argsObj as Record<string, unknown>)
+            ? (argsObj as Record<string, unknown>).timeout
+            : undefined;
+        const baseMs =
+          typeof argTimeout === "number" && argTimeout > 0
+            ? Math.min(argTimeout, TOOL_WATCHDOG_MAX_MS)
+            : TOOL_WATCHDOG_DEFAULT_MS;
+        const deadline = baseMs + TOOL_WATCHDOG_SLACK_MS;
+        const t = setTimeout(() => {
+          toolWatchdogs.delete(callId);
+          this.logger.warn("tool watchdog fired", { callId, name, deadlineMs: deadline });
+          midStreamError = mapToHarnessError(
+            new Error(
+              `tool "${name}" produced no result after ${deadline}ms (no tool_end from SDK). aborting turn.`,
+            ),
+          );
+          status = "failed";
+          abort.abort();
+          live.run.cancel().catch(() => {});
+        }, deadline);
+        // Don't keep the event loop alive for the watchdog itself.
+        t.unref();
+        toolWatchdogs.set(callId, t);
+      };
+      const clearToolWatchdog = (callId: string): void => {
+        const t = toolWatchdogs.get(callId);
+        if (t) {
+          clearTimeout(t);
+          toolWatchdogs.delete(callId);
+        }
+      };
+
       try {
         try {
           for await (const msg of live.run.stream()) {
@@ -341,6 +393,8 @@ export class Session {
                       : {}),
                   };
                   host.fireToolCall(snap, ctx);
+                  if (e2.type === "tool_start") armToolWatchdog(e2.callId, e2.name, e2.args);
+                  else clearToolWatchdog(e2.callId);
                 }
               }
             }
@@ -400,6 +454,7 @@ export class Session {
         );
       }
     } finally {
+      clearAllToolWatchdogs();
       try {
         await host.cleanup(ctx);
       } catch (e) {

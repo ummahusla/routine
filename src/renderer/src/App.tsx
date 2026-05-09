@@ -128,6 +128,8 @@ export function App() {
     typeof window === "undefined" ? false : window.innerWidth < 820,
   );
   const stopRef = useRef(false);
+  const prevSessionIdRef = useRef<string | null>(null);
+  const lastFlowbuilderCallRef = useRef<string | null>(null);
 
   const { turns, loading: loadingTurns, send, cancel } = useSession(selectedSessionId ?? undefined, reloadKey);
   const lastTurn = turns[turns.length - 1];
@@ -196,16 +198,25 @@ export function App() {
   }, [loadSessions]);
 
   useEffect(() => {
-    if (!selectedSessionId) return;
+    if (!selectedSessionId) {
+      prevSessionIdRef.current = null;
+      lastFlowbuilderCallRef.current = null;
+      return;
+    }
+    const isSwitch = prevSessionIdRef.current !== selectedSessionId;
+    prevSessionIdRef.current = selectedSessionId;
+    if (isSwitch) lastFlowbuilderCallRef.current = null;
 
     let cancelled = false;
     setLoadingSession(true);
-    setBuilding(true);
     setError(null);
-    setFlow(null);
-    setManifest(null);
-    setFocusId(null);
-    setRunState({});
+    if (isSwitch) {
+      setBuilding(true);
+      setFlow(null);
+      setManifest(null);
+      setFocusId(null);
+      setRunState({});
+    }
 
     window.api.flowbuilder
       .readSession(selectedSessionId)
@@ -233,6 +244,29 @@ export function App() {
       cancelled = true;
     };
   }, [selectedSessionId, reloadKey]);
+
+  useEffect(() => {
+    if (!selectedSessionId || turns.length === 0) return;
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const turn = turns[i]!;
+      const calls = turn.assistant.toolCalls;
+      for (let j = calls.length - 1; j >= 0; j--) {
+        const call = calls[j]!;
+        if (call.ok !== true) continue;
+        const args = call.args as { toolName?: unknown } | undefined;
+        const isFlowbuilderWrite =
+          call.name.includes("flowbuilder_set_state") ||
+          (call.name === "mcp" && args?.toolName === "flowbuilder_set_state");
+        if (isFlowbuilderWrite) {
+          if (lastFlowbuilderCallRef.current !== call.callId) {
+            lastFlowbuilderCallRef.current = call.callId;
+            setReloadKey((current) => current + 1);
+          }
+          return;
+        }
+      }
+    }
+  }, [turns, selectedSessionId]);
 
   function handleSelect(id: string): void {
     if (id === selectedSessionId) return;
