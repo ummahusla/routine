@@ -122,9 +122,11 @@ export async function runPrompt(opts: RunOptions): Promise<RunResult> {
       }
       if (status !== "cancelled") {
         const wait = await live.run.wait();
-        const waitStatus = (wait as { status?: string }).status;
+        const waitStatus = (wait as { status?: string }).status?.toLowerCase();
         if (waitStatus === "cancelled") status = "cancelled";
-        else if (waitStatus && waitStatus !== "completed") status = "failed";
+        else if (waitStatus && waitStatus !== "completed" && waitStatus !== "finished") {
+          status = "failed";
+        }
         const u = (wait as { usage?: { inputTokens: number; outputTokens: number } }).usage;
         if (u) usage = u;
       }
