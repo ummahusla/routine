@@ -546,15 +546,15 @@ export function App() {
     setRunning(false);
   }
 
-  // Enable Play only when the flow is linear-runnable: needs an input
-  // (rendered as "trigger") and an output, with no branch/merge nodes
-  // (engine validator currently rejects those).
+  // Enable Play when the engine can execute: at least one output node, no
+  // branch/merge (topo rejects those). Graphs may start with flow/llm nodes
+  // without an explicit input — the engine seeds the root with an empty envelope.
   const canRun = useMemo(() => {
-    if (!flow || !selectedSessionId) return false;
-    const types = new Set(flow.nodes.map((n) => n.type));
-    if (types.has("branch")) return false;
-    return types.has("trigger") && types.has("output");
-  }, [flow, selectedSessionId]);
+    if (!selectedSessionId || !fbState) return false;
+    if (!fbState.nodes.some((n) => n.type === "output")) return false;
+    if (fbState.nodes.some((n) => n.type === "branch" || n.type === "merge")) return false;
+    return true;
+  }, [selectedSessionId, fbState]);
 
   // Drive a real engine run via the preload IPC bridge. This replaces the
   // simulated handleRun for Play-button-initiated executions; the simulated
