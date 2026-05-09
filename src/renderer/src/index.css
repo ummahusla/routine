@@ -30,7 +30,7 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 /* Sidebar */
 .sb { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
 .sb-brand { display: flex; align-items: center; gap: 8px; padding: 14px 14px 12px; }
-.sb-mark { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--accent) 50%, var(--accent-2))); display: grid; place-items: center; color: #0a0a0c; }
+.sb-mark { width: 26px; height: 26px; flex-shrink: 0; border-radius: 7px; background: linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--accent) 50%, var(--accent-2))); display: grid; place-items: center; color: #0a0a0c; }
 .sb-brand-name { font-weight: 600; letter-spacing: -0.01em; }
 .sb-brand-tag { font-size: 10px; padding: 2px 5px; background: var(--surface-3); color: var(--muted); border-radius: 4px; margin-left: 2px; font-family: "Geist Mono", monospace; }
 .sb-new { margin: 4px 12px 8px; display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: var(--surface-3); border: 1px solid var(--border-2); color: var(--text); border-radius: 8px; cursor: pointer; font-size: 12.5px; transition: background .12s; }
