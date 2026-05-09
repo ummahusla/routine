@@ -20,3 +20,5 @@ export {
   FlowbuilderUnsupportedVersion,
   FlowbuilderMcpStartError,
 } from "./errors.js";
+export { bootstrapFlowbuilderSession } from "./bootstrap.js";
+export type { BootstrapArgs } from "./bootstrap.js";
