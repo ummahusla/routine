@@ -861,7 +861,7 @@ export function App() {
                   />
                 </div>
               )}
-              {flow && flow.nodes.length > 0 && <FlowLegend />}
+              {flow && flow.nodes.length > 0 && <FlowLegend nodes={flow.nodes} />}
             </div>
 
             <div className="cf-bottom">
