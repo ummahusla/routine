@@ -378,6 +378,12 @@ export class Session {
             : TOOL_WATCHDOG_DEFAULT_MS;
         const deadline = baseMs + TOOL_WATCHDOG_SLACK_MS;
         const t = setTimeout(() => {
+          // Race guard: a real tool_end may have arrived in the same tick
+          // and called clearToolWatchdog. clearTimeout() can't unschedule
+          // a callback already on the queue, so re-check the map before
+          // synthesizing — otherwise we'd emit a duplicate tool_end after
+          // the real one.
+          if (!toolWatchdogs.has(callId)) return;
           toolWatchdogs.delete(callId);
           this.logger.warn("tool watchdog fired", {
             callId,
