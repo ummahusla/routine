@@ -1,16 +1,25 @@
 import { resolve } from 'path'
-import { defineConfig } from 'electron-vite'
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
     resolve: {
       alias: {
-        '@flow-build/flowbuilder': resolve('packages/flowbuilder/src/schema.ts')
+        '@flow-build/core': resolve('packages/core/src/index.ts'),
+        '@flow-build/flowbuilder': resolve('packages/flowbuilder/src/index.ts')
       }
-    }
+    },
+    plugins: [externalizeDepsPlugin({ exclude: ['@flow-build/core', '@flow-build/flowbuilder'] })]
   },
-  preload: {},
+  preload: {
+    resolve: {
+      alias: {
+        '@flow-build/core': resolve('packages/core/src/index.ts')
+      }
+    },
+    plugins: [externalizeDepsPlugin({ exclude: ['@flow-build/core'] })]
+  },
   renderer: {
     resolve: {
       alias: {
