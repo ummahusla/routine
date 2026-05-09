@@ -37,7 +37,7 @@ export function TopBar({ flow, onHome, onTidy, onPlay, canRun, running }: TopBar
           aria-busy={running}
           title={
             !canRun
-              ? "Add an output node; remove branch/merge to enable execution"
+              ? "Add at least one node; remove branch/merge to enable execution"
               : running
                 ? "Running…"
                 : "Execute flow"
