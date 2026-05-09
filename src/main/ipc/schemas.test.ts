@@ -29,4 +29,11 @@ describe("schemas", () => {
     expect(RenameInputSchema.safeParse({ sessionId: "01HXYZABCDEFGHJKMNPQRSTVWX", title: "" }).success).toBe(false);
     expect(RenameInputSchema.safeParse({ sessionId: "01HXYZABCDEFGHJKMNPQRSTVWX", title: "ok" }).success).toBe(true);
   });
+  it(".strict() rejects unknown keys at trust boundary", () => {
+    const validId = "01HXYZABCDEFGHJKMNPQRSTVWX";
+    expect(SendInputSchema.safeParse({ sessionId: validId, prompt: "hi", extra: "x" }).success).toBe(false);
+    expect(CreateInputSchema.safeParse({ wat: 1 }).success).toBe(false);
+    expect(WatchInputSchema.safeParse({ sessionId: validId, foo: "bar" }).success).toBe(false);
+    expect(RenameInputSchema.safeParse({ sessionId: validId, title: "ok", junk: true }).success).toBe(false);
+  });
 });
