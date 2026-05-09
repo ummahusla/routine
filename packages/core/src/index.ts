@@ -1,6 +1,7 @@
 export { runPrompt } from "./run.js";
 export type {
   Logger,
+  McpServerConfig,
   RetryOptions,
   RunOptions,
   HarnessEvent,
