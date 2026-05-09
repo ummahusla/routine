@@ -17,6 +17,9 @@ importers:
       '@electron-toolkit/utils':
         specifier: ^4.0.0
         version: 4.0.0(electron@39.8.10)
+      '@flow-build/core':
+        specifier: workspace:*
+        version: link:packages/core
       '@flow-build/flowbuilder':
         specifier: workspace:*
         version: link:packages/flowbuilder
