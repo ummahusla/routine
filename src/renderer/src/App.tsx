@@ -362,6 +362,60 @@ export function App() {
     });
   }
 
+  async function handleReplayFrom(startId: string): Promise<void> {
+    if (!flow || running || readOnlySession) return;
+
+    const adj: Record<string, string[]> = {};
+    flow.edges.forEach(([from, to]) => {
+      (adj[from] ||= []).push(to);
+    });
+    const subset = new Set<string>([startId]);
+    const stack = [startId];
+    while (stack.length) {
+      const cur = stack.pop()!;
+      (adj[cur] || []).forEach((next) => {
+        if (!subset.has(next)) {
+          subset.add(next);
+          stack.push(next);
+        }
+      });
+    }
+
+    const layers = topoLayers(flow)
+      .map((layer) => layer.filter((id) => subset.has(id)))
+      .filter((layer) => layer.length > 0);
+
+    if (!layers.length) return;
+
+    stopRef.current = false;
+    setRunning(true);
+    setRunState((state) => {
+      const next: RunState = { ...state };
+      subset.forEach((id) => (next[id] = "pending"));
+      return next;
+    });
+
+    for (const layer of layers) {
+      if (stopRef.current) break;
+      setRunState((state) => {
+        const next: RunState = { ...state };
+        layer.forEach((id) => (next[id] = "running"));
+        return next;
+      });
+      requestAnimationFrame(() => scrollToNodes(layer));
+      await new Promise((resolve) => window.setTimeout(resolve, 650));
+      if (stopRef.current) break;
+      setRunState((state) => {
+        const next: RunState = { ...state };
+        layer.forEach((id) => (next[id] = "done"));
+        return next;
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 200));
+    }
+
+    setRunning(false);
+  }
+
   function handleStop(): void {
     stopRef.current = true;
     setRunning(false);
@@ -728,6 +782,9 @@ ${userPrompt}`;
             status={runState[focusId]}
             readOnly={readOnlySession}
             onClose={() => setFocusId(null)}
+            onReplay={
+              readOnlySession || running ? undefined : () => void handleReplayFrom(focusId)
+            }
           />
         )}
       </main>
