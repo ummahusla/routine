@@ -500,34 +500,6 @@ kbd {
   color: var(--text);
   font-weight: 500;
 }
-.tb-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  font-size: 12px;
-  cursor: pointer;
-  transition:
-    background 0.12s ease,
-    border-color 0.12s ease,
-    color 0.12s ease;
-}
-.tb-action:hover {
-  background: var(--surface-3);
-  border-color: var(--border-2);
-  color: var(--text);
-}
-.tb-action svg {
-  color: var(--muted);
-  transition: color 0.12s ease;
-}
-.tb-action:hover svg {
-  color: var(--accent);
-}
 .tb-sep {
   color: var(--dim);
 }
@@ -641,6 +613,28 @@ kbd {
 }
 .tb-btn-primary:hover:not(:disabled) {
   background: #4f46e5;
+}
+/* Tidy: same box model as .tb-btn; surface styling only */
+.tb-action {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+.tb-action:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-2);
+  color: var(--text);
+}
+.tb-action svg {
+  color: var(--muted);
+  transition: color 0.12s ease;
+}
+.tb-action:hover:not(:disabled) svg {
+  color: var(--accent);
 }
 .tb-stop {
   background: var(--rose);
