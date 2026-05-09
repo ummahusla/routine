@@ -27,6 +27,7 @@ import { buildReplay } from "./replay.js";
 import { ulid } from "./ulid.js";
 import { acquireLock, releaseLock } from "./lockfile.js";
 import { SessionBusyError } from "./errors.js";
+import { startSafeShellForSession, type SafeShellSessionHandle } from "./safe-shell-lifecycle.js";
 import type {
   LineEnvelope,
   SendTurnOptions,
@@ -78,6 +79,7 @@ export class Session {
     | { turnId: string; abort: AbortController; runCancel?: () => Promise<void> }
     | undefined;
   private closed = false;
+  private safeShell: SafeShellSessionHandle | undefined;
 
   constructor(opts: SessionInternalOptions) {
     this.baseDir = opts.baseDir;
@@ -215,6 +217,43 @@ export class Session {
       const pluginPrefix = await host.runPromptPrefix(ctx);
       const mcpServers = await host.runProvideMcpServers(ctx);
 
+      // Lazy-init safe-shell on first send (mirrors the systemPromptApplied
+      // precedent above): the hooks-file install + HTTP listener startup
+      // are async/IO-bound, so we defer them out of the constructor. The
+      // FLOW_BUILD_SAFE_SHELL=0 escape hatch lets operators bypass entirely
+      // if the upstream SDK fix lands. Default-on so new sessions get the
+      // shell-deny + sandboxed sh tool automatically.
+      const safeShellEnabled = process.env.FLOW_BUILD_SAFE_SHELL !== "0";
+      let mergedMcpServers = mcpServers;
+      if (safeShellEnabled) {
+        if (!this.safeShell) {
+          try {
+            this.safeShell = await startSafeShellForSession({
+              workspaceDir: this.workspaceDir,
+              logger: this.logger,
+            });
+          } catch (e) {
+            this.logger.warn("safe-shell startup failed; continuing without it", {
+              cause: String(e),
+            });
+          }
+        }
+        if (this.safeShell) {
+          if (
+            mergedMcpServers &&
+            Object.prototype.hasOwnProperty.call(mergedMcpServers, "safe-shell")
+          ) {
+            this.logger.warn(
+              "plugin provided an mcpServers entry under key 'safe-shell'; harness entry wins",
+            );
+          }
+          mergedMcpServers = {
+            ...(mergedMcpServers ?? {}),
+            "safe-shell": this.safeShell.mcpEntry,
+          };
+        }
+      }
+
       const priorTurns = reduce(
         readEvents({ baseDir: this.baseDir, sessionId: this.sessionId }),
       );
@@ -241,8 +280,8 @@ export class Session {
                 apiKey: this.apiKey,
                 model: { id: this.model },
                 local: { cwd: this.workspaceDir, settingSources: ["project", "user"] },
-                ...(mcpServers && Object.keys(mcpServers).length > 0
-                  ? { mcpServers }
+                ...(mergedMcpServers && Object.keys(mergedMcpServers).length > 0
+                  ? { mcpServers: mergedMcpServers }
                   : {}),
               });
             } catch (e) {
@@ -555,6 +594,17 @@ export class Session {
         await this.host.endSession(endCtx);
       } catch (e) {
         this.logger.warn("plugin endSession threw", { cause: String(e) });
+      }
+      // Dispose AFTER plugins finish their endSession work — plugin
+      // cleanup may still want shell access; we tear down the hooks
+      // file + MCP listener last.
+      if (this.safeShell) {
+        try {
+          await this.safeShell.dispose();
+        } catch (e) {
+          this.logger.warn("safe-shell dispose failed", { cause: String(e) });
+        }
+        this.safeShell = undefined;
       }
     } finally {
       releaseLock(lockPath(this.baseDir, this.sessionId));
