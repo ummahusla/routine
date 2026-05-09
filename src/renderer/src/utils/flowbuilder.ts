@@ -82,6 +82,13 @@ function projectNode(node: FlowbuilderNode): NodeProjection {
         label: "Output",
         sub: summarizeValue(node.value),
       };
+    case "llm":
+      return {
+        type: "llm",
+        icon: "llm",
+        label: "LLM",
+        sub: node.model ?? "claude-sonnet",
+      };
   }
 }
 

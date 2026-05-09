@@ -7,6 +7,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { startFlowbuilderMcpServer } from "./mcp-server.js";
 import { SessionManager } from "./session.js";
 import type { Manifest, State } from "./schema.js";
+import type { RunResult } from "@flow-build/engine";
 
 let baseDir: string;
 const sessionId = "s_abc123def456";
@@ -44,6 +45,12 @@ afterEach(() => {
   rmSync(baseDir, { recursive: true, force: true });
 });
 
+const noopRunStubs = {
+  runStarter: async (): Promise<string> => { throw new Error("execute_flow not wired in test"); },
+  runResultReader: async (): Promise<never> => { throw new Error("get_run_result not wired in test"); },
+  waitForRunEnd: async (): Promise<void> => {},
+};
+
 async function withClient<T>(
   url: string,
   fn: (client: Client) => Promise<T>,
@@ -62,7 +69,7 @@ async function withClient<T>(
 describe("flowbuilder MCP server", () => {
   it("flowbuilder_get_state returns empty state on a fresh session", async () => {
     const mgr = setupSession();
-    const handle = await startFlowbuilderMcpServer({ session: mgr });
+    const handle = await startFlowbuilderMcpServer({ session: mgr, ...noopRunStubs });
     try {
       const result = await withClient(handle.url, (c) =>
         c.callTool({ name: "flowbuilder_get_state", arguments: {} }),
@@ -78,7 +85,7 @@ describe("flowbuilder MCP server", () => {
 
   it("flowbuilder_set_state accepts valid state and persists it", async () => {
     const mgr = setupSession();
-    const handle = await startFlowbuilderMcpServer({ session: mgr });
+    const handle = await startFlowbuilderMcpServer({ session: mgr, ...noopRunStubs });
     try {
       const newState: State = {
         schemaVersion: 1,
@@ -108,7 +115,7 @@ describe("flowbuilder MCP server", () => {
 
   it("flowbuilder_set_state returns ok:false on schema violation", async () => {
     const mgr = setupSession();
-    const handle = await startFlowbuilderMcpServer({ session: mgr });
+    const handle = await startFlowbuilderMcpServer({ session: mgr, ...noopRunStubs });
     try {
       const result = await withClient(handle.url, (c) =>
         c.callTool({
@@ -129,7 +136,7 @@ describe("flowbuilder MCP server", () => {
 
   it("flowbuilder_set_state returns ok:false on ref integrity violation", async () => {
     const mgr = setupSession();
-    const handle = await startFlowbuilderMcpServer({ session: mgr });
+    const handle = await startFlowbuilderMcpServer({ session: mgr, ...noopRunStubs });
     try {
       const result = await withClient(handle.url, (c) =>
         c.callTool({
@@ -154,11 +161,85 @@ describe("flowbuilder MCP server", () => {
 
   it("binds only to 127.0.0.1 with a non-zero port", async () => {
     const mgr = setupSession();
-    const handle = await startFlowbuilderMcpServer({ session: mgr });
+    const handle = await startFlowbuilderMcpServer({ session: mgr, ...noopRunStubs });
     try {
       expect(handle.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
       const port = Number(new URL(handle.url).port);
       expect(port).toBeGreaterThan(0);
+    } finally {
+      await handle.close();
+    }
+  });
+});
+
+describe("flowbuilder_execute_flow tool", () => {
+  it("calls runStarter with sessionId and returns { ok, runId, sessionId }", async () => {
+    const calls: string[] = [];
+    const session = setupSession();
+    const handle = await startFlowbuilderMcpServer({
+      session,
+      runStarter: async (sid) => { calls.push(sid); return "RUN_ABC"; },
+      runResultReader: async () => ({ manifest: { runId: "x", sessionId: "y", startedAt: "t", status: "succeeded" }, events: [], outputs: {} }),
+      waitForRunEnd: async () => {},
+    });
+    try {
+      const result = await withClient(handle.url, (c) =>
+        c.callTool({ name: "flowbuilder_execute_flow", arguments: {} }),
+      );
+      const text = (result.content as { type: string; text: string }[])[0]?.text ?? "";
+      expect(JSON.parse(text)).toEqual({ ok: true, runId: "RUN_ABC", sessionId: session.sessionId });
+      expect(calls).toEqual([session.sessionId]);
+    } finally {
+      await handle.close();
+    }
+  });
+});
+
+describe("flowbuilder_get_run_result tool", () => {
+  it("returns disk state without waitMs", async () => {
+    const session = setupSession();
+    const result: RunResult = {
+      manifest: { runId: "r1", sessionId: session.sessionId, startedAt: "t", status: "succeeded" },
+      events: [],
+      outputs: { o: { text: "hi" } },
+    };
+    const handle = await startFlowbuilderMcpServer({
+      session,
+      runStarter: async () => "r1",
+      runResultReader: async () => result,
+      waitForRunEnd: async () => {},
+    });
+    try {
+      const r = await withClient(handle.url, (c) =>
+        c.callTool({ name: "flowbuilder_get_run_result", arguments: { runId: "r1" } }),
+      );
+      const body = JSON.parse((r.content as { type: string; text: string }[])[0]?.text ?? "");
+      expect(body.ok).toBe(true);
+      expect(body.status).toBe("succeeded");
+      expect(body.outputs.o.text).toBe("hi");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("invokes waitForRunEnd when waitMs > 0", async () => {
+    const session = setupSession();
+    let waitCalledWith: { runId?: string; ms?: number } = {};
+    const handle = await startFlowbuilderMcpServer({
+      session,
+      runStarter: async () => "r1",
+      runResultReader: async () => ({
+        manifest: { runId: "r1", sessionId: session.sessionId, startedAt: "t", status: "succeeded" },
+        events: [],
+        outputs: {},
+      }),
+      waitForRunEnd: async (runId, ms) => { waitCalledWith = { runId, ms }; },
+    });
+    try {
+      await withClient(handle.url, (c) =>
+        c.callTool({ name: "flowbuilder_get_run_result", arguments: { runId: "r1", waitMs: 5000 } }),
+      );
+      expect(waitCalledWith).toEqual({ runId: "r1", ms: 5000 });
     } finally {
       await handle.close();
     }

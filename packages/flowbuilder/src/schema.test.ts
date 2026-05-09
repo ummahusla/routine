@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   ManifestSchema,
+  NodeSchema,
   StateSchema,
+  LlmNodeSchema,
   validateRefIntegrity,
   type Manifest,
   type State,
@@ -106,5 +108,53 @@ describe("validateRefIntegrity", () => {
       edges: [{ from: "n1", to: "ghost" }],
     };
     expect(() => validateRefIntegrity(bad)).toThrow(/edge.to references unknown node: ghost/);
+  });
+});
+
+describe("LlmNodeSchema", () => {
+  it("accepts a valid llm node with required + defaulted fields", () => {
+    const parsed = LlmNodeSchema.parse({
+      id: "l1",
+      type: "llm",
+      prompt: "Translate {{input}}",
+    });
+    expect(parsed.model).toBe("claude-sonnet-4-6");
+    expect(parsed.maxTokens).toBe(4096);
+    expect(parsed.temperature).toBe(0.7);
+  });
+
+  it("rejects llm node with empty prompt", () => {
+    expect(() =>
+      LlmNodeSchema.parse({ id: "l1", type: "llm", prompt: "" }),
+    ).toThrow();
+  });
+
+  it("NodeSchema accepts llm in the discriminated union", () => {
+    const parsed = NodeSchema.parse({ id: "l1", type: "llm", prompt: "p" });
+    expect(parsed.type).toBe("llm");
+  });
+
+  it("StateSchema parses a graph with input → llm → output (backward compat: pre-llm graphs still parse)", () => {
+    const pre = {
+      schemaVersion: 1,
+      nodes: [
+        { id: "i", type: "input", value: 1 },
+        { id: "f", type: "flow", flow: "x/y", params: {} },
+        { id: "o", type: "output", value: null },
+      ],
+      edges: [{ from: "i", to: "f" }, { from: "f", to: "o" }],
+    };
+    expect(() => StateSchema.parse(pre)).not.toThrow();
+
+    const withLlm = {
+      schemaVersion: 1,
+      nodes: [
+        { id: "i", type: "input", value: 1 },
+        { id: "l", type: "llm", prompt: "p" },
+        { id: "o", type: "output", value: null },
+      ],
+      edges: [{ from: "i", to: "l" }, { from: "l", to: "o" }],
+    };
+    expect(() => StateSchema.parse(withLlm)).not.toThrow();
   });
 });

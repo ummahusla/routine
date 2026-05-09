@@ -3,11 +3,20 @@ import type { McpServerConfig } from "@flow-build/core";
 import { SessionManager, type LoadedSession } from "./session.js";
 import { renderFlowbuilderPrefix } from "./prompt.js";
 import { FLOWBUILDER_RULES_PATH, renderFlowbuilderRules } from "./rules.js";
-import { startFlowbuilderMcpServer, type FlowbuilderMcpHandle } from "./mcp-server.js";
+import {
+  startFlowbuilderMcpServer,
+  type FlowbuilderMcpHandle,
+  type RunStarter,
+  type RunResultReader,
+  type RunWaiter,
+} from "./mcp-server.js";
 
 export type FlowbuilderPluginOptions = {
   baseDir: string;
   sessionId: string;
+  runStarter?: RunStarter;
+  runResultReader?: RunResultReader;
+  waitForRunEnd?: RunWaiter;
 };
 
 type StashedState = {
@@ -34,7 +43,12 @@ export function createFlowbuilderPlugin(opts: FlowbuilderPluginOptions): Plugin 
         runId: ctx.runId,
       });
       const loaded = session.load();
-      const handle = await startFlowbuilderMcpServer({ session });
+      const handle = await startFlowbuilderMcpServer({
+        session,
+        runStarter: opts.runStarter ?? (async () => { throw new Error("execute_flow not available in this context"); }),
+        runResultReader: opts.runResultReader ?? (async () => { throw new Error("get_run_result not available"); }),
+        waitForRunEnd: opts.waitForRunEnd ?? (async () => {}),
+      });
       const stash: StashedState = { session, loaded, handle };
       ctx.state.set(STATE_KEY, stash);
     },

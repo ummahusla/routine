@@ -4,12 +4,15 @@ type TopBarProps = {
   flow: Flow | null;
   onHome: () => void;
   onTidy: () => void;
+  onPlay: () => void;
+  canRun: boolean;
+  running: boolean;
 };
 
 // Flow controls live in chat commands and run state surfaces in the sidebar
 // + per-node badges, so the top bar only carries breadcrumb navigation
 // and a Tidy action that re-runs auto-layout.
-export function TopBar({ flow, onHome, onTidy }: TopBarProps) {
+export function TopBar({ flow, onHome, onTidy, onPlay, canRun, running }: TopBarProps) {
   return (
     <div className="tb">
       <div className="tb-l">
@@ -26,6 +29,20 @@ export function TopBar({ flow, onHome, onTidy }: TopBarProps) {
         </div>
       </div>
       <div className="tb-r">
+        <button
+          className="tb-btn tb-btn-primary"
+          onClick={onPlay}
+          disabled={!canRun || running}
+          title={
+            !canRun
+              ? "Add input + output nodes; remove branch/merge to enable execution"
+              : running
+                ? "Running…"
+                : "Execute flow"
+          }
+        >
+          {running ? "Running…" : "▶ Play"}
+        </button>
         {flow && (
           <button className="tb-action" onClick={onTidy} title="Auto-arrange the canvas">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">

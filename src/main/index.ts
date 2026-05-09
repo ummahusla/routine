@@ -10,9 +10,13 @@ import {
   deleteSession,
   type Session,
 } from "@flow-build/core";
+import { createRun, makeCursorClient, readRunResult } from "@flow-build/engine";
+import { StateSchema, validateRefIntegrity } from "@flow-build/flowbuilder";
 import icon from "../../resources/icon.png?asset";
 import { SessionRegistry } from "./registry.js";
 import { registerSessionIpc } from "./ipc/session.js";
+import { RunRegistry } from "./runRegistry.js";
+import { registerRunIpc } from "./ipc/run.js";
 
 function loadLocalEnv(): void {
   // Precedence (Vite-like): shell env > .env.local > .env. We iterate the
@@ -77,12 +81,39 @@ process.on("unhandledRejection", (reason) => {
   console.warn(`[main] swallowed unhandledRejection${code ? ` (${code})` : ""}: ${message}`);
 });
 
+const cursorClient = makeCursorClient();
+
+const runRegistry = new RunRegistry({
+  baseDir: getBaseDir(),
+  cursorClient,
+  loadState: async (sessionId: string) => {
+    const dir = join(getBaseDir(), "sessions", sessionId);
+    const state = StateSchema.parse(JSON.parse(readFileSync(join(dir, "state.json"), "utf8")));
+    validateRefIntegrity(state);
+    return state;
+  },
+  makeRun: ({ sessionId, baseDir, state, cursorClient: cc }) =>
+    createRun({ sessionId, baseDir, state, cursorClient: cc }),
+});
+
+const runStarter = (sessionId: string) => runRegistry.start(sessionId);
+const runResultReader = (sessionId: string, runId: string) =>
+  readRunResult(getBaseDir(), sessionId, runId);
+const waitForRunEnd = (runId: string, timeoutMs: number) =>
+  runRegistry.waitForRunEnd(runId, timeoutMs);
+
 const registry = new SessionRegistry<Session>({
   openSession: (sessionId) =>
     loadSession({
       baseDir: getBaseDir(),
       sessionId,
-      plugins: defaultPlugins({ baseDir: getBaseDir(), sessionId }),
+      plugins: defaultPlugins({
+        baseDir: getBaseDir(),
+        sessionId,
+        runStarter,
+        runResultReader,
+        waitForRunEnd,
+      }),
     }),
 });
 
@@ -132,10 +163,21 @@ app.whenReady().then(() => {
       createSession({
         ...opts,
         pluginsFactory: (sessionId) =>
-          defaultPlugins({ baseDir: opts.baseDir, sessionId }),
+          defaultPlugins({
+            baseDir: opts.baseDir,
+            sessionId,
+            runStarter,
+            runResultReader,
+            waitForRunEnd,
+          }),
       }),
     listSessions: (opts) => listSessions(opts),
     deleteSession: (opts) => deleteSession(opts),
+  });
+
+  registerRunIpc(ipcMain, {
+    baseDir: getBaseDir(),
+    registry: runRegistry,
   });
 
   ipcMain.handle("flowbuilder:list-sessions", async () => {

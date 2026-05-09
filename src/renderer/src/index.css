@@ -384,6 +384,70 @@ kbd {
   color: var(--text);
 }
 
+.sb-extras {
+  border-top: 1px solid var(--border);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+/* RunSidebar */
+.rs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+}
+.rs-head {
+  font-weight: 600;
+  opacity: 0.7;
+  padding-bottom: 4px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+.rs-row {
+  display: flex;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  align-items: center;
+  text-align: left;
+}
+.rs-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.rs-status {
+  font-size: 11px;
+  opacity: 0.8;
+  min-width: 64px;
+}
+.rs-time {
+  font-size: 11px;
+  opacity: 0.6;
+}
+.rs-id {
+  font-size: 11px;
+  opacity: 0.5;
+  font-family: "Geist Mono", monospace;
+}
+.rs-failed .rs-status {
+  color: #fca5a5;
+}
+.rs-succeeded .rs-status {
+  color: #86efac;
+}
+.rs-empty {
+  padding: 10px 12px;
+  color: var(--dim);
+  font-size: 11.5px;
+  font-style: italic;
+}
+
 /* Main */
 .main {
   display: flex;
@@ -568,6 +632,13 @@ kbd {
 .tb-run:hover:not(:disabled) {
   filter: brightness(1.06);
 }
+.tb-btn-primary {
+  background: #6366f1;
+  color: #fff;
+}
+.tb-btn-primary:hover:not(:disabled) {
+  background: #4f46e5;
+}
 .tb-stop {
   background: var(--rose);
   color: white;
@@ -575,6 +646,7 @@ kbd {
 .tb-stop:hover {
   filter: brightness(1.06);
 }
+
 
 /* Empty state */
 .empty {
@@ -2355,4 +2427,30 @@ body.is-panning * {
   .ins {
     width: calc(100vw - 70px);
   }
+}
+.fc-llm-prompt {
+  width: 100%;
+  font-family: inherit;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 4px;
+  resize: none;
+}
+.fc-llm-stream {
+  margin-top: 6px;
+  padding: 4px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.fc-llm-error {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #fca5a5;
 }
