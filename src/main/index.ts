@@ -18,6 +18,7 @@ import { SessionRegistry } from "./registry.js";
 import { registerSessionIpc } from "./ipc/session.js";
 import { RunRegistry } from "./runRegistry.js";
 import { registerRunIpc } from "./ipc/run.js";
+import { registerModelsIpc } from "./ipc/models.js";
 
 function loadLocalEnv(): void {
   // Precedence (Vite-like): shell env > .env.local > .env. We iterate the
@@ -185,6 +186,8 @@ app.whenReady().then(() => {
     baseDir: getBaseDir(),
     registry: runRegistry,
   });
+
+  registerModelsIpc(ipcMain, { apiKey: process.env.CURSOR_API_KEY ?? "" });
 
   ipcMain.handle("flowbuilder:list-sessions", async () => {
     const baseDir = getBaseDir();
