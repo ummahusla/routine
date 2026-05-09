@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "ticket_input",
+      "type": "input",
+      "value": {
+        "source": "zendesk",
+        "ticketId": "ZD-1024",
+        "subject": "Enterprise workspace cannot invite teammates"
+      }
+    },
+    {
+      "id": "severity_branch",
+      "type": "branch",
+      "cond": "ticket.priority === 'urgent' || ticket.accountTier === 'enterprise'"
+    },
+    {
+      "id": "urgent_path",
+      "type": "flow",
+      "flow": "support/escalate-ticket",
+      "params": {
+        "channel": "slack",
+        "team": "on-call"
+      }
+    },
+    {
+      "id": "routine_path",
+      "type": "flow",
+      "flow": "support/draft-reply",
+      "params": {
+        "tone": "warm",
+        "includeLinks": true
+      }
+    },
+    {
+      "id": "merge_outcome",
+      "type": "merge"
+    },
+    {
+      "id": "response_output",
+      "type": "output",
+      "value": {
+        "format": "response-plan",
+        "destination": "agent"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "ticket_input",
+      "to": "severity_branch"
+    },
+    {
+      "from": "severity_branch",
+      "to": "urgent_path"
+    },
+    {
+      "from": "severity_branch",
+      "to": "routine_path"
+    },
+    {
+      "from": "urgent_path",
+      "to": "merge_outcome"
+    },
+    {
+      "from": "routine_path",
+      "to": "merge_outcome"
+    },
+    {
+      "from": "merge_outcome",
+      "to": "response_output"
+    }
+  ]
+}

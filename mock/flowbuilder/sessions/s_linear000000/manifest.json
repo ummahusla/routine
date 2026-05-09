@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "s_linear000000",
+  "name": "GitHub issues digest",
+  "description": "Fetch open issues, summarize them, and expose a markdown digest.",
+  "createdAt": "2026-05-09T10:00:00.000Z",
+  "updatedAt": "2026-05-09T10:30:00.000Z"
+}
