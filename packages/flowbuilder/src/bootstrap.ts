@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { customAlphabet } from "nanoid";
+import { FlowbuilderIOError, FlowbuilderSchemaError } from "./errors.js";
 import { EMPTY_STATE, type Manifest, ManifestSchema } from "./schema.js";
 
 const idGen = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 12);
@@ -25,7 +26,24 @@ export function bootstrapFlowbuilderSession(args: BootstrapArgs): {
 
   let manifest: Manifest;
   if (existsSync(manifestPath)) {
-    manifest = ManifestSchema.parse(JSON.parse(readFileSync(manifestPath, "utf8")));
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(manifestPath, "utf8"));
+    } catch (cause) {
+      throw new FlowbuilderIOError(`failed to read manifest at ${manifestPath}`, {
+        sessionId: args.sessionId,
+        path: manifestPath,
+        cause,
+      });
+    }
+    try {
+      manifest = ManifestSchema.parse(parsed);
+    } catch (cause) {
+      throw new FlowbuilderSchemaError(
+        `manifest at ${manifestPath} failed schema validation`,
+        { sessionId: args.sessionId, path: manifestPath, cause },
+      );
+    }
   } else {
     const ts = new Date().toISOString();
     manifest = {

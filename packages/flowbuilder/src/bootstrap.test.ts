@@ -1,8 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bootstrapFlowbuilderSession } from "./bootstrap.js";
+import { FlowbuilderSchemaError } from "./errors.js";
 
 let baseDir: string;
 beforeEach(() => {
@@ -32,5 +40,14 @@ describe("bootstrapFlowbuilderSession", () => {
       readFileSync(join(baseDir, "sessions", "S1", "manifest.json"), "utf8"),
     );
     expect(m.name).toBe("first");
+  });
+
+  it("throws FlowbuilderSchemaError when existing manifest fails schema validation", () => {
+    const dir = join(baseDir, "sessions", "S1");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "manifest.json"), JSON.stringify({ schemaVersion: 1, id: "bad-id" }));
+    expect(() =>
+      bootstrapFlowbuilderSession({ baseDir, sessionId: "S1", name: "x" }),
+    ).toThrow(FlowbuilderSchemaError);
   });
 });
