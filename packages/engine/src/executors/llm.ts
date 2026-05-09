@@ -30,7 +30,18 @@ export async function executeLlm(opts: ExecuteLlmOpts): Promise<Envelope> {
     collected += chunk;
     opts.onChunk(chunk);
   }
-  const final = await call.done;
+  let final: { text: string };
+  if (opts.signal) {
+    const signal = opts.signal;
+    const abortPromise = new Promise<never>((_, rej) => {
+      const onAbort = () => rej(new Error("cancelled"));
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    });
+    final = await Promise.race([call.done, abortPromise]);
+  } else {
+    final = await call.done;
+  }
   const text = final.text !== "" ? final.text : collected;
 
   const env: Envelope = { text };
