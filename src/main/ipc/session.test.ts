@@ -30,7 +30,7 @@ describe("registerSessionIpc", () => {
     };
     registerSessionIpc(ipc as never, deps as never);
     const result = await ipc.invoke("session:create", {}, { title: "demo" });
-    expect(result).toEqual({ sessionId: "01HXYZABCDEFGHJKMNPQRSTVWX" });
+    expect(result).toEqual({ ok: true, sessionId: "01HXYZABCDEFGHJKMNPQRSTVWX" });
     expect(deps.createSession).toHaveBeenCalledWith({ baseDir, title: "demo" });
   });
 

@@ -54,7 +54,7 @@ export function registerSessionIpc(ipc: IpcMain, deps: IpcDeps): void {
       if (parsed.data.title) args.title = parsed.data.title;
       if (parsed.data.model) args.model = parsed.data.model;
       const s = await deps.createSession(args);
-      return { sessionId: s.sessionId };
+      return { ok: true, sessionId: s.sessionId };
     } catch (e) {
       return harnessFail(e);
     }
