@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type {
+  ModelInfo,
   PersistedTurn,
   SessionEvent,
   SessionMetadata,
@@ -43,8 +44,12 @@ const api = {
       const r = await ipcRenderer.invoke("session:open", { sessionId });
       return unwrap<{ metadata: SessionMetadata; turns: PersistedTurn[] }>(r);
     },
-    async send(sessionId: string, prompt: string): Promise<TurnResult> {
-      const r = await ipcRenderer.invoke("session:send", { sessionId, prompt });
+    async send(sessionId: string, prompt: string, model?: string): Promise<TurnResult> {
+      const r = await ipcRenderer.invoke("session:send", {
+        sessionId,
+        prompt,
+        ...(model ? { model } : {}),
+      });
       return unwrap<TurnResult>(r);
     },
     async cancel(sessionId: string): Promise<void> {
@@ -93,6 +98,21 @@ const api = {
           }
         });
       };
+    },
+  },
+  models: {
+    async list(opts: { refresh?: boolean } = {}): Promise<ModelInfo[]> {
+      const r = await ipcRenderer.invoke("models:list", opts);
+      return unwrap<{ models: ModelInfo[] }>(r).models;
+    },
+  },
+  app: {
+    async getDefaultModel(): Promise<string> {
+      const r = await ipcRenderer.invoke("app:get-default-model");
+      return unwrap<{ model: string }>(r).model;
+    },
+    async setDefaultModel(model: string): Promise<void> {
+      unwrap(await ipcRenderer.invoke("app:set-default-model", { model }));
     },
   },
   run: {
