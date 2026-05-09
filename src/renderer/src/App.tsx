@@ -1,5 +1,5 @@
-import { useRef, useState, type CSSProperties } from "react";
-import { FLOW_TEMPLATES, PREVIOUS_FLOWS, SUGGESTED_PROMPTS, matchTemplate } from "./data/flowTemplates";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { FLOW_TEMPLATES, PREVIOUS_FLOWS, matchTemplate } from "./data/flowTemplates";
 import { NODE_W, NODE_H, GAP_X } from "./data/constants";
 import { cloneFlow, topoLayers, nodePos } from "./utils/flow";
 
@@ -127,6 +127,21 @@ export function App() {
     setMessages([]);
     setFocusId(null);
   }
+
+  // Cmd/Ctrl+N is the documented shortcut and works in app contexts
+  // (Electron / installed PWA). Browsers reserve plain ⌘N for opening a
+  // new window, so the shortcut effectively only fires here.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent): void {
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && (event.key === "n" || event.key === "N")) {
+        event.preventDefault();
+        handleNew();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   async function handleRun(): Promise<void> {
     if (!flow || running) return;
@@ -442,7 +457,7 @@ ${userPrompt}`;
       <main className="main">
         <TopBar flow={flow} onHome={handleNew} />
 
-        {!flow && !building && <EmptyState onSubmit={handleSubmit} suggestions={SUGGESTED_PROMPTS} />}
+        {!flow && !building && <EmptyState onSubmit={handleSubmit} />}
 
         {(flow || building) && (
           <div className="chatflow">

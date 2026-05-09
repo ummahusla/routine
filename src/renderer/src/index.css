@@ -187,7 +187,8 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 .cf-canvas-wrap::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 6px; border: 2px solid var(--bg); }
 .cf-canvas-wrap::-webkit-scrollbar-thumb:hover { background: var(--surface-3); }
 .cf-canvas-wrap::-webkit-scrollbar-corner { background: var(--bg); }
-.fc-wrap { padding: 16px; min-width: max-content; min-height: 100%; box-sizing: border-box; }
+.fc-wrap { padding: 16px; min-width: max-content; min-height: 100%; box-sizing: border-box; cursor: grab; }
+body.is-panning, body.is-panning * { cursor: grabbing !important; }
 .fc-canvas { position: relative; cursor: default; }
 .fc-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
 .fc-edge { fill: none; stroke: rgba(200,205,215,0.32); stroke-width: 1.4; stroke-linecap: round; opacity: 0; animation: edgeIn .3s ease-out forwards; transition: stroke .15s ease, stroke-width .15s ease; }

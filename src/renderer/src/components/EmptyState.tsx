@@ -1,14 +1,11 @@
 import { useState } from "react";
-import { ICONS } from "../data/icons";
 import { PromptBox } from "./PromptBox";
-import type { SuggestedPrompt } from "../types";
 
 type EmptyStateProps = {
   onSubmit: (value: string) => void;
-  suggestions: SuggestedPrompt[];
 };
 
-export function EmptyState({ onSubmit, suggestions }: EmptyStateProps) {
+export function EmptyState({ onSubmit }: EmptyStateProps) {
   const [val, setVal] = useState("");
 
   function send(text?: string): void {
@@ -34,23 +31,6 @@ export function EmptyState({ onSubmit, suggestions }: EmptyStateProps) {
       </p>
 
       <PromptBox value={val} onChange={setVal} onSubmit={() => send()} large />
-
-      <div className="empty-suggest">
-        <div className="empty-suggest-h">Or start from something like</div>
-        <div className="empty-suggest-grid">
-          {suggestions.map((suggestion) => (
-            <button key={suggestion.label} className="sg-card" onClick={() => send(suggestion.label)}>
-              <span className="sg-ico">{ICONS[suggestion.icon]}</span>
-              <span className="sg-label">{suggestion.label}</span>
-              <span className="sg-arrow">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

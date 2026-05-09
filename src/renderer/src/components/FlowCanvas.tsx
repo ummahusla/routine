@@ -75,11 +75,18 @@ export function FlowCanvas({
     const initMy = event.clientY - rect.top;
     setConnecting({ fromId: node.id, x1, y1, mx: initMx, my: initMy, hoverId: null });
 
-    const onMove = (moveEvent: globalThis.MouseEvent): void => {
-      const r = canvasEl.getBoundingClientRect();
-      const cx = moveEvent.clientX - r.left;
-      const cy = moveEvent.clientY - r.top;
-      const target = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY) as HTMLElement | null;
+    const scroller = canvasEl.parentElement;
+    let lastClientX = event.clientX;
+    let lastClientY = event.clientY;
+    let rafId = 0;
+    const EDGE = 48; // px from viewport edge that triggers auto-scroll
+    const MAX_SPEED = 18; // px per frame at the very edge
+
+    function recompute(): void {
+      const r = canvasEl!.getBoundingClientRect();
+      const cx = lastClientX - r.left;
+      const cy = lastClientY - r.top;
+      const target = document.elementFromPoint(lastClientX, lastClientY) as HTMLElement | null;
       const nodeEl = target?.closest?.(".fc-node");
       const hoverId = nodeEl?.getAttribute("data-node-id") || null;
       setConnecting((current) =>
@@ -90,11 +97,41 @@ export function FlowCanvas({
           hoverId: hoverId !== node.id ? hoverId : null,
         },
       );
+    }
+
+    function tick(): void {
+      if (scroller) {
+        const sr = scroller.getBoundingClientRect();
+        let dy = 0;
+        let dx = 0;
+        const distTop = lastClientY - sr.top;
+        const distBot = sr.bottom - lastClientY;
+        const distLeft = lastClientX - sr.left;
+        const distRight = sr.right - lastClientX;
+        if (distTop < EDGE && distTop > -EDGE) dy = -MAX_SPEED * Math.max(0, (EDGE - distTop) / EDGE);
+        else if (distBot < EDGE && distBot > -EDGE) dy = MAX_SPEED * Math.max(0, (EDGE - distBot) / EDGE);
+        if (distLeft < EDGE && distLeft > -EDGE) dx = -MAX_SPEED * Math.max(0, (EDGE - distLeft) / EDGE);
+        else if (distRight < EDGE && distRight > -EDGE) dx = MAX_SPEED * Math.max(0, (EDGE - distRight) / EDGE);
+        if (dx || dy) {
+          scroller.scrollLeft += dx;
+          scroller.scrollTop += dy;
+          recompute();
+        }
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+    rafId = requestAnimationFrame(tick);
+
+    const onMove = (moveEvent: globalThis.MouseEvent): void => {
+      lastClientX = moveEvent.clientX;
+      lastClientY = moveEvent.clientY;
+      recompute();
     };
 
     const onUp = (upEvent: globalThis.MouseEvent): void => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      cancelAnimationFrame(rafId);
       const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY) as HTMLElement | null;
       const nodeEl = target?.closest?.(".fc-node");
       const toId = nodeEl?.getAttribute("data-node-id") || null;
@@ -145,9 +182,11 @@ export function FlowCanvas({
     window.addEventListener("mouseup", onUp);
   }
 
+  // Pan via left-click or middle-click on any empty canvas space. Skip
+  // nodes (they have their own drag) and any port/edge interactive bits.
   function handleBgMouseDown(event: MouseEvent<HTMLDivElement>): void {
-    if (event.button !== 1) return;
-    if ((event.target as HTMLElement).closest(".fc-node")) return;
+    if (event.button !== 0 && event.button !== 1) return;
+    if ((event.target as HTMLElement).closest(".fc-node, .fc-edge-hit, .fc-edge-del, .fc-palette")) return;
     event.preventDefault();
     const scroller = document.querySelector<HTMLElement>(".cf-canvas-wrap");
     if (!scroller) return;
@@ -155,7 +194,7 @@ export function FlowCanvas({
     const startY = event.clientY;
     const startScrollX = scroller.scrollLeft;
     const startScrollY = scroller.scrollTop;
-    document.body.style.cursor = "grabbing";
+    document.body.classList.add("is-panning");
     const onMove = (moveEvent: globalThis.MouseEvent): void => {
       scroller.scrollLeft = startScrollX - (moveEvent.clientX - startX);
       scroller.scrollTop = startScrollY - (moveEvent.clientY - startY);
@@ -163,7 +202,7 @@ export function FlowCanvas({
     const onUp = (): void => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
+      document.body.classList.remove("is-panning");
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -177,12 +216,11 @@ export function FlowCanvas({
   }
 
   return (
-    <div className="fc-wrap">
+    <div className="fc-wrap" onMouseDown={handleBgMouseDown}>
       <div
         className="fc-canvas"
         ref={canvasRef}
         style={{ width: W, height: H }}
-        onMouseDown={handleBgMouseDown}
       >
         <svg className="fc-edges" width={W} height={H}>
           <defs>
