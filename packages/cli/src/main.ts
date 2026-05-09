@@ -7,7 +7,8 @@ import {
   NetworkError,
   HarnessError,
 } from "@flow-build/core";
-import type { Logger } from "@flow-build/core";
+import type { Logger, Plugin } from "@flow-build/core";
+import { createRotePlugin } from "@flow-build/rote";
 import { makeRenderer } from "./render.js";
 
 type CliDeps = {
@@ -88,6 +89,9 @@ async function executeRun(
 
   const attempts = opts.retry ? opts.maxRetries : 1;
 
+  const plugins: Plugin[] =
+    process.env.FLOW_BUILD_DISABLE_PLUGINS === "1" ? [] : [createRotePlugin({})];
+
   let result;
   try {
     result = await runPrompt({
@@ -98,6 +102,7 @@ async function executeRun(
       onEvent: render,
       logger,
       retry: { attempts },
+      plugins,
     });
   } catch (e) {
     deps.stderr.write(`\nerror: ${(e as Error).message}\n`);
