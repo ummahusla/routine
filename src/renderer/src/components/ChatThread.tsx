@@ -2,7 +2,7 @@ import { useEffect, useRef, type MouseEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PersistedTurn } from "@flow-build/core";
-import { ToolCallChip } from "./ToolCallChip";
+import { ToolCallsSection } from "./ToolCallsSection";
 
 type ChatThreadProps = {
   turns: PersistedTurn[];
@@ -62,9 +62,7 @@ export function ChatThread({ turns, height, loading = false, onResize }: ChatThr
               <div className="msg msg-ai">
                 <div className="msg-body">
                   <div className="msg-h">FlowBuild</div>
-                  {turn.assistant.toolCalls.map((c) => (
-                    <ToolCallChip key={c.callId} call={c} />
-                  ))}
+                  <ToolCallsSection calls={turn.assistant.toolCalls} />
                   {turn.assistant.textBlocks.length > 0 && (
                     <div className="msg-text">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -72,6 +70,15 @@ export function ChatThread({ turns, height, loading = false, onResize }: ChatThr
                       </ReactMarkdown>
                     </div>
                   )}
+                  {turn.status === "running" &&
+                    turn.assistant.textBlocks.length === 0 &&
+                    turn.assistant.toolCalls.length === 0 && (
+                      <div className="msg-typing" aria-label="Waiting for response">
+                        <span className="msg-typing-dot" />
+                        <span className="msg-typing-dot" />
+                        <span className="msg-typing-dot" />
+                      </div>
+                    )}
                   {turn.status !== "completed" && turn.status !== "running" && (
                     <div className="msg-end">
                       [turn {turn.status}]
