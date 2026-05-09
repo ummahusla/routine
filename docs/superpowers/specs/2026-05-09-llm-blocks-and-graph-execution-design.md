@@ -43,9 +43,11 @@ walks the graph or invokes anything. After this spec, the graph runs.
    runs end-to-end via the UI Play button, with French text streaming live
    into the LLM node and a final envelope visible in the inspector.
 2. The same graph runs end-to-end via the MCP tool
-   `flowbuilder_execute_flow` invoked by the chat agent. The agent receives
-   a `runId` synchronously and can read final outputs from
-   `sessions/<sid>/runs/<runId>/outputs.json`.
+   `flowbuilder_execute_flow` invoked by the chat agent. The agent
+   receives a `runId` synchronously, then calls
+   `flowbuilder_get_run_result({ runId })` to retrieve final status +
+   output envelope once the run finishes (polling once at the end is
+   sufficient for the conversational case).
 3. A graph that includes a `flow` node referencing an installed rote flow
    runs that flow as a real subprocess and threads its stdout into
    downstream blocks.
@@ -313,17 +315,19 @@ current edited graph.
 
 ---
 
-## 6. MCP tool — `flowbuilder_execute_flow`
+## 6. MCP tools — `flowbuilder_execute_flow` + `flowbuilder_get_run_result`
 
-Added in `packages/flowbuilder/src/mcp-server.ts` `buildMcpServer()`,
-alongside the existing two tools:
+Two new tools added in `packages/flowbuilder/src/mcp-server.ts`
+`buildMcpServer()`, alongside the existing read/write pair.
+
+### 6.1 `flowbuilder_execute_flow` (fire-and-forget)
 
 ```ts
 mcp.tool(
   "flowbuilder_execute_flow",
   "Execute the current flowbuilder graph. Returns a runId immediately; \
-the run executes asynchronously. Read sessions/<sid>/runs/<runId>/ for \
-final state once the run completes.",
+the run executes asynchronously. Call flowbuilder_get_run_result({ runId }) \
+to await the final outcome.",
   {},   // no params — runs the saved graph
   async () => {
     // session here is the SessionManager already passed to buildMcpServer.
@@ -335,18 +339,86 @@ final state once the run completes.",
 );
 ```
 
-**Fire-and-forget.** The tool returns immediately with `{ runId, sessionId }`.
-The agent can continue conversation; to learn the result it re-reads
-state, or asks the user, or (in a follow-up) we add a polling tool.
+The tool returns immediately with `{ runId, sessionId }`. The MCP
+request is finished before the first node executes; the engine churns
+in the background under `RunRegistry`.
 
 **No params.** v1 runs the saved graph as-is. Inputs are encoded in the
 `InputNode.value` field — agent or user edits state.json (via existing
-`flowbuilder_set_state`) then calls execute. Keeps the tool surface
-minimal and aligned with the existing read/write pair.
+`flowbuilder_set_state`) then calls execute.
 
-Polling tools (`get_run_status`, `cancel_run`, `list_runs`) are
-explicitly deferred — the UI consumes events directly, and the agent
-rarely needs to drive a tight execution loop.
+### 6.2 `flowbuilder_get_run_result`
+
+Closes the loop so the agent can act on results in the same
+conversation. Reads from disk (no in-memory state required, so it works
+for past runs too).
+
+```ts
+mcp.tool(
+  "flowbuilder_get_run_result",
+  "Fetch the result of a previously started run. If the run is still in \
+progress, returns { status: 'running' } — the agent should retry a few \
+seconds later. Once finished, returns final status, finalOutput, and \
+per-node outputs.",
+  {
+    runId: z.string(),
+    waitMs: z.number().int().min(0).max(60_000).optional(),  // see below
+  },
+  async ({ runId, waitMs }) => {
+    if (waitMs && waitMs > 0) {
+      await runRegistry.waitForRunEnd(runId, waitMs);  // resolves on run_end or timeout
+    }
+    const result = await readRunResult(session.baseDir, session.id, runId);
+    // result = { status, finalOutput?, outputs: Record<nodeId, Envelope>, error? }
+    return asTextResult(result);
+  },
+);
+```
+
+**`waitMs` is the agent's "block until done (with timeout)" knob.** When
+provided, the tool blocks server-side up to `waitMs` waiting for the
+run's `run_end` event (via `RunRegistry.waitForRunEnd`). When absent,
+it returns immediately with whatever's currently on disk. This keeps
+the simple agent flow one tool call (`execute_flow` then
+`get_run_result({ runId, waitMs: 30000 })`) without making the engine
+itself synchronous, and without adding a polling loop on the agent side.
+
+**Why split into two tools instead of one synchronous `execute_flow`:**
+- Long runs that exceed `waitMs` still complete; `get_run_result` can be
+  re-called later (or with a longer wait) to fetch the final result.
+- UI runs and agent runs share the same async engine — no fork in
+  behavior.
+- The agent gets to decide its patience budget per call.
+
+**`flowbuilder_execute_flow` rule of thumb for the agent** (documented
+in `rules.ts`): after kicking off a run, follow up immediately with
+`flowbuilder_get_run_result({ runId, waitMs: 30000 })` unless told
+otherwise. Most graphs in v1 finish in seconds.
+
+### 6.3 Tools NOT in v1
+
+`cancel_run`, `list_runs`, and a streaming/event-subscription tool are
+explicitly deferred. The UI handles cancellation and listing via direct
+IPC (§7); agents rarely need them.
+
+### 6.4 Rules update (`packages/flowbuilder/src/rules.ts`)
+
+The flowbuilder plugin's injected system-prompt rules (which already
+document the schema and the existing get/set tools) gain:
+
+- A new section describing the `llm` node: shape, when to use it vs a
+  rote `flow` node, the `{{input}}` / `{{input.data.X}}` template syntax,
+  default model/temperature, and the single-shot constraint (no tools,
+  no multi-turn).
+- A new section describing the execution tools and the recommended
+  pattern: `flowbuilder_execute_flow()` immediately followed by
+  `flowbuilder_get_run_result({ runId, waitMs: 30000 })`.
+- A note that template substitution applies to `FlowNode.params`
+  string values too, so an agent can wire data from upstream into a
+  rote flow's parameters without reading and re-writing state mid-run.
+
+This is the surface the agent reads to "know what it can do" — keeping
+it accurate is part of the implementation work, not an afterthought.
 
 ---
 
@@ -413,6 +485,15 @@ class RunRegistry {
   cancel(runId: string): Promise<void> {
     return this.runs.get(runId)?.cancel() ?? Promise.resolve();
   }
+
+  /**
+   * Resolves when the given run reaches run_end, or when timeoutMs elapses
+   * — whichever happens first. Used by flowbuilder_get_run_result's
+   * `waitMs` knob (§6.2). If the run is already done (not in `runs`), the
+   * promise resolves immediately. Never throws on timeout — caller reads
+   * disk to discover whether the run actually finished.
+   */
+  waitForRunEnd(runId: string, timeoutMs: number): Promise<void> { /* ... */ }
 }
 ```
 
@@ -528,10 +609,17 @@ No autocomplete, no validation — keep authoring lightweight.
 - Backward compat: existing pre-llm `state.json` fixtures still parse.
 - Discriminated union round-trips through `JSON.parse(JSON.stringify(...))`.
 
-### 9.3 Flowbuilder MCP tool test
+### 9.3 Flowbuilder MCP tool tests
 
 - `flowbuilder_execute_flow` returns well-formed `{ runId, sessionId }` text result.
 - Calling without an active session → typed error.
+- `flowbuilder_get_run_result({ runId })` with no `waitMs` returns
+  current state from disk (status, partial outputs).
+- `flowbuilder_get_run_result({ runId, waitMs })` resolves once
+  `RunRegistry.waitForRunEnd` fires; returned status matches `run_end`.
+- `flowbuilder_get_run_result({ runId, waitMs })` returns the
+  in-progress disk state if `waitMs` elapses before `run_end`.
+- Unknown `runId` → typed error.
 
 ### 9.4 IPC tests
 
