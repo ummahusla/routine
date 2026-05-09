@@ -92,6 +92,12 @@ importers:
         specifier: ^1.0.0
         version: 1.0.12
 
+  packages/rote:
+    dependencies:
+      '@flow-build/core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   7zip-bin@5.2.0:
