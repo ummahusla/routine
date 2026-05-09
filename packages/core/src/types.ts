@@ -1,3 +1,7 @@
+import type { McpServerConfig } from "@cursor/sdk";
+
+export type { McpServerConfig };
+
 export type Logger = {
   warn: (msg: string, ctx?: Record<string, unknown>) => void;
   debug?: (msg: string, ctx?: Record<string, unknown>) => void;
@@ -68,6 +72,9 @@ export type Plugin = {
   preRun?: (ctx: RuntimeContext) => Promise<PreRunOutput | void>;
   systemPrompt?: (ctx: RuntimeContext) => Promise<SystemPromptContribution | void>;
   promptPrefix?: (ctx: RuntimeContext) => Promise<string | void>;
+  provideMcpServers?: (
+    ctx: RuntimeContext,
+  ) => Promise<Record<string, McpServerConfig>>;
   interceptEvent?: (e: HarnessEvent, ctx: RuntimeContext) => HarnessEvent[] | void;
   onToolCall?: (call: ToolCallSnapshot, ctx: RuntimeContext) => Promise<void>;
   cleanup?: (ctx: RuntimeContext) => Promise<void>;

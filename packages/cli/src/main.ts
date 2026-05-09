@@ -9,6 +9,7 @@ import {
 } from "@flow-build/core";
 import type { Logger, Plugin } from "@flow-build/core";
 import { createRotePlugin } from "@flow-build/rote";
+import { createFlowbuilderPlugin } from "@flow-build/flowbuilder";
 import { makeRenderer } from "./render.js";
 
 type CliDeps = {
@@ -35,6 +36,8 @@ export async function runCli(deps: CliDeps): Promise<void> {
     .option("--max-retries <n>", "max retry attempts", (v) => parseInt(v, 10), 3)
     .option("--no-retry", "disable retries (sets attempts=1)")
     .option("--verbose", "enable debug logs", false)
+    .requiredOption("--session <id>", "flowbuilder session id")
+    .requiredOption("--flowbuilder-base <dir>", "flowbuilder base directory")
     .action(async (prompt: string, opts: RunCmdOpts) => {
       await executeRun(prompt, opts, deps);
     });
@@ -59,6 +62,8 @@ type RunCmdOpts = {
   maxRetries: number;
   retry: boolean;
   verbose: boolean;
+  session: string;
+  flowbuilderBase: string;
 };
 
 async function executeRun(
@@ -89,8 +94,13 @@ async function executeRun(
 
   const attempts = opts.retry ? opts.maxRetries : 1;
 
-  const plugins: Plugin[] =
-    process.env.FLOW_BUILD_DISABLE_PLUGINS === "1" ? [] : [createRotePlugin({})];
+  const plugins: Plugin[] = [
+    createRotePlugin({}),
+    createFlowbuilderPlugin({
+      baseDir: opts.flowbuilderBase,
+      sessionId: opts.session,
+    }),
+  ];
 
   let result;
   try {
