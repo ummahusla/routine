@@ -9,6 +9,12 @@ out
 *.log*
 *.tsbuildinfo
 *.gen.ts
+
+# tsc build artifacts co-located with TS sources
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
 .env
 .env.local
 polymarket-weather-markets.md
