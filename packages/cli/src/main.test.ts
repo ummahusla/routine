@@ -2,17 +2,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setupFlowbuilderFixture, type FlowbuilderFixture } from "./test-helpers/flowbuilder-fixture.js";
 
 let dir: string;
+let fb: FlowbuilderFixture;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "flow-build-cli-"));
   process.env.CURSOR_API_KEY = "crsr_test";
   vi.resetModules();
+  fb = setupFlowbuilderFixture();
 });
 
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
+  rmSync(fb.baseDir, { recursive: true, force: true });
   delete process.env.CURSOR_API_KEY;
   vi.doUnmock("@flow-build/core");
 });
@@ -63,7 +67,7 @@ describe("CLI smoke", () => {
     const ctl = new AbortController();
     await expect(
       runCli({
-        argv: ["node", "flow-build", "run", "hello", "--cwd", dir],
+        argv: ["node", "flow-build", "run", "hello", "--cwd", dir, "--session", fb.sessionId, "--flowbuilder-base", fb.baseDir],
         stdout: streams.stdout,
         stderr: streams.stderr,
         isTTY: false,
@@ -94,7 +98,7 @@ describe("CLI smoke", () => {
     const ctl = new AbortController();
     await expect(
       runCli({
-        argv: ["node", "flow-build", "run", "hello", "--cwd", dir],
+        argv: ["node", "flow-build", "run", "hello", "--cwd", dir, "--session", fb.sessionId, "--flowbuilder-base", fb.baseDir],
         stdout: streams.stdout,
         stderr: streams.stderr,
         isTTY: false,
@@ -122,7 +126,7 @@ describe("CLI smoke", () => {
     const ctl = new AbortController();
     await expect(
       runCli({
-        argv: ["node", "flow-build", "run", "hello", "--cwd", dir],
+        argv: ["node", "flow-build", "run", "hello", "--cwd", dir, "--session", fb.sessionId, "--flowbuilder-base", fb.baseDir],
         stdout: streams.stdout,
         stderr: streams.stderr,
         isTTY: false,
@@ -146,7 +150,7 @@ describe("CLI smoke", () => {
     const ctl = new AbortController();
     await expect(
       runCli({
-        argv: ["node", "flow-build", "run", "hello", "--cwd", dir],
+        argv: ["node", "flow-build", "run", "hello", "--cwd", dir, "--session", fb.sessionId, "--flowbuilder-base", fb.baseDir],
         stdout: streams.stdout,
         stderr: streams.stderr,
         isTTY: false,
