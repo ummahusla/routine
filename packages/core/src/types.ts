@@ -23,8 +23,8 @@ export type RunOptions = {
 export type HarnessEvent =
   | { type: "text"; delta: string }
   | { type: "thinking"; delta: string }
-  | { type: "tool_start"; name: string; callId: string }
-  | { type: "tool_end"; name: string; callId: string; ok: boolean }
+  | { type: "tool_start"; name: string; callId: string; args?: unknown }
+  | { type: "tool_end"; name: string; callId: string; ok: boolean; args?: unknown }
   | { type: "status"; phase: "starting" | "running" | "done"; message?: string };
 
 export type RunStatus = "completed" | "cancelled" | "failed";

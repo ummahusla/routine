@@ -6,7 +6,6 @@ import { normalize } from "./normalizer.js";
 import { withRetry } from "./retry.js";
 import { PluginHost } from "./plugin/host.js";
 import type {
-  HarnessEvent,
   Logger,
   RunOptions,
   RunResult,
@@ -106,6 +105,7 @@ export async function runPrompt(opts: RunOptions): Promise<RunResult> {
                 callId: e2.callId,
                 name: e2.name,
                 status: "running",
+                ...(e2.args !== undefined ? { args: e2.args } : {}),
               };
               host.fireToolCall(snap, ctx);
             }
@@ -114,6 +114,7 @@ export async function runPrompt(opts: RunOptions): Promise<RunResult> {
                 callId: e2.callId,
                 name: e2.name,
                 status: e2.ok ? "completed" : "error",
+                ...(e2.args !== undefined ? { args: e2.args } : {}),
               };
               host.fireToolCall(snap, ctx);
             }

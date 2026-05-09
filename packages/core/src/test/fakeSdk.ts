@@ -59,7 +59,7 @@ export function makeFakeAgent(spec: FakeAgentSpec = {}): FakeAgent {
 
 export type FakeSdkConfig = {
   createBehavior: Array<{ throws?: unknown; agent?: FakeAgent }>;
-  sendBehavior?: { throws?: unknown };
+  sendBehavior?: { throws?: unknown; before?: (prompt: string) => void };
 };
 
 export type InstalledFakeSdk = {
@@ -81,6 +81,7 @@ export function installFakeSdk(cfg: FakeSdkConfig): InstalledFakeSdk {
     const fa = next.agent;
     const send = vi.fn(async (prompt: string) => {
       lastSendPrompt = prompt;
+      cfg.sendBehavior?.before?.(prompt);
       if (cfg.sendBehavior?.throws) throw cfg.sendBehavior.throws;
       return fa.run;
     });
