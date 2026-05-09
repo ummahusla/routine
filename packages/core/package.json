@@ -20,5 +20,8 @@
   },
   "dependencies": {
     "@cursor/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@flow-build/rote": "workspace:*"
   }
 }

@@ -94,6 +94,10 @@ importers:
       '@cursor/sdk':
         specifier: ^1.0.0
         version: 1.0.12
+    devDependencies:
+      '@flow-build/rote':
+        specifier: workspace:*
+        version: link:../rote
 
   packages/rote:
     dependencies:

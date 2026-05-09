@@ -1,2 +1,2 @@
 export { createRotePlugin } from "./plugin.js";
-export type { RotePluginOptions, RoteFacts } from "./types.js";
+export type { RotePluginOptions, RoteFacts, ExecFn, ExecResult } from "./types.js";
