@@ -55,7 +55,11 @@
       "Bash(pnpm -r build)",
       "Bash(pnpm --filter @flow-build/flowbuilder test)",
       "Bash(grep -n \"setManifest\\\\|setFlow\\(\\\\|setFlow$\" /Users/arina/Documents/Dev/flow-build/src/renderer/src/App.tsx)",
-      "Bash(pnpm test *)"
+      "Bash(pnpm test *)",
+      "Bash(git pull *)",
+      "Bash(grep -rn *)",
+      "Bash(git add *)",
+      "Bash(pnpm exec *)"
     ],
     "additionalDirectories": [
       "/tmp"

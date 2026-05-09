@@ -66,7 +66,7 @@ export function ChatThread({ turns, height, loading = false, onResize }: ChatThr
       <div className="ct-resizer" onMouseDown={onResizeDown} title="Drag to resize">
         <div className="ct-resizer-grip" />
       </div>
-      <div className="ct" ref={scrollRef} style={{ height, maxHeight: "none", flex: "0 0 auto" }}>
+      <div className="ct" ref={scrollRef} style={{ height, flex: "0 0 auto" }}>
         <div className="ct-list">
           {loading && turns.length === 0 && (
             <div className="ct-loading" role="status" aria-live="polite">
