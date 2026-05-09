@@ -9,6 +9,7 @@ import {
   FlowbuilderMcpStartError,
 } from "./errors.js";
 import type { SessionManager } from "./session.js";
+import type { RunResult } from "@flow-build/engine";
 
 export type FlowbuilderMcpHandle = {
   url: string;
@@ -16,8 +17,15 @@ export type FlowbuilderMcpHandle = {
   close(): Promise<void>;
 };
 
+export type RunStarter = (sessionId: string) => Promise<string>;
+export type RunResultReader = (sessionId: string, runId: string) => Promise<RunResult>;
+export type RunWaiter = (runId: string, timeoutMs: number) => Promise<void>;
+
 export type StartOptions = {
   session: SessionManager;
+  runStarter: RunStarter;
+  runResultReader: RunResultReader;
+  waitForRunEnd: RunWaiter;
 };
 
 const SetStateInput = z.object({ state: StateSchema });
@@ -30,7 +38,12 @@ function asTextResult(payload: unknown): {
   };
 }
 
-function buildMcpServer(session: SessionManager): McpServer {
+function buildMcpServer(
+  session: SessionManager,
+  runStarter: RunStarter,
+  _runResultReader: RunResultReader,
+  _waitForRunEnd: RunWaiter,
+): McpServer {
   const mcp = new McpServer(
     { name: "flowbuilder", version: "0.0.0" },
     { capabilities: { tools: {} } },
@@ -77,13 +90,27 @@ function buildMcpServer(session: SessionManager): McpServer {
     },
   );
 
+  mcp.tool(
+    "flowbuilder_execute_flow",
+    "Execute the current flowbuilder graph. Returns a runId immediately; the run executes asynchronously. Call flowbuilder_get_run_result({ runId, waitMs }) to await the final outcome.",
+    {},
+    async () => {
+      try {
+        const runId = await runStarter(session.sessionId);
+        return asTextResult({ ok: true, runId, sessionId: session.sessionId });
+      } catch (e) {
+        return asTextResult({ ok: false, error: errorToToolMessage(e) });
+      }
+    },
+  );
+
   return mcp;
 }
 
 export async function startFlowbuilderMcpServer(
   opts: StartOptions,
 ): Promise<FlowbuilderMcpHandle> {
-  const { session } = opts;
+  const { session, runStarter, runResultReader, waitForRunEnd } = opts;
 
   const http: HttpServer = createServer(async (req, res) => {
     if (!req.url || !req.url.startsWith("/mcp")) {
@@ -105,7 +132,7 @@ export async function startFlowbuilderMcpServer(
     // re-initialization across distinct clients. A per-request server
     // is the supported pattern (see SDK's simpleStatelessStreamableHttp
     // example).
-    const mcp = buildMcpServer(session);
+    const mcp = buildMcpServer(session, runStarter, runResultReader, waitForRunEnd);
     // Omit `sessionIdGenerator` to opt into stateless mode (each request
     // gets a fresh transport+server). Passing it explicitly as `undefined`
     // trips `exactOptionalPropertyTypes`.

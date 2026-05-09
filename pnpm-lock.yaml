@@ -139,6 +139,9 @@ importers:
       '@flow-build/core':
         specifier: workspace:*
         version: link:../core
+      '@flow-build/engine':
+        specifier: workspace:*
+        version: link:../engine
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.4
         version: 1.29.0(zod@3.25.76)
