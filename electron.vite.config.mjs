@@ -36,6 +36,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@flow-build/core': resolve('packages/core/src/index.ts'),
+        '@flow-build/engine': resolve('packages/engine/src/index.ts'),
         '@flow-build/flowbuilder': resolve('packages/flowbuilder/src/index.ts'),
         '@flow-build/rote': resolve('packages/rote/src/index.ts')
       }
@@ -43,7 +44,7 @@ export default defineConfig({
     plugins: [
       rotateSkillRegenPlugin(),
       externalizeDepsPlugin({
-        exclude: ['@flow-build/core', '@flow-build/flowbuilder', '@flow-build/rote']
+        exclude: ['@flow-build/core', '@flow-build/engine', '@flow-build/flowbuilder', '@flow-build/rote']
       })
     ]
   },
