@@ -24,6 +24,7 @@ async function startWithRetry(
   prompt: string,
   signal: AbortSignal | undefined,
   logger: Logger | undefined,
+  mcpServers: Record<string, import("@cursor/sdk").McpServerConfig> | undefined,
 ): Promise<LiveRun> {
   return withRetry<LiveRun>(
     async () => {
@@ -33,6 +34,9 @@ async function startWithRetry(
           apiKey: cfg.apiKey,
           model: { id: cfg.model },
           local: { cwd: cfg.cwd, settingSources: ["project", "user"] },
+          ...(mcpServers && Object.keys(mcpServers).length > 0
+            ? { mcpServers }
+            : {}),
         });
       } catch (e) {
         throw mapToHarnessError(e);
@@ -85,7 +89,9 @@ export async function runPrompt(opts: RunOptions): Promise<RunResult> {
     const prefix = await host.runPromptPrefix(ctx);
     const finalPrompt = prefix.length > 0 ? `${prefix}\n\n${cfg.prompt}` : cfg.prompt;
 
-    const live = await startWithRetry(cfg, finalPrompt, signal, logger);
+    const mcpServers = await host.runProvideMcpServers(ctx);
+
+    const live = await startWithRetry(cfg, finalPrompt, signal, logger, mcpServers);
 
     try {
       for await (const msg of live.run.stream()) {
