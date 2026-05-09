@@ -53,6 +53,88 @@ export type Flow = {
   edges: FlowEdge[];
 };
 
+export type FlowbuilderNode =
+  | {
+      id: string;
+      type: "input";
+      value: unknown;
+    }
+  | {
+      id: string;
+      type: "output";
+      value: unknown;
+    }
+  | {
+      id: string;
+      type: "flow";
+      flow: string;
+      params: Record<string, unknown>;
+    }
+  | {
+      id: string;
+      type: "branch";
+      cond: string;
+    }
+  | {
+      id: string;
+      type: "merge";
+    };
+
+export type FlowbuilderEdge = {
+  from: string;
+  to: string;
+};
+
+export type FlowbuilderManifest = {
+  schemaVersion: 1;
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FlowbuilderState = {
+  schemaVersion: 1;
+  nodes: FlowbuilderNode[];
+  edges: FlowbuilderEdge[];
+};
+
+export type FlowbuilderSessionSummary = {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  nodeCount: number;
+};
+
+export type FlowbuilderListSessionsResult =
+  | {
+      ok: true;
+      baseDir: string;
+      sessions: FlowbuilderSessionSummary[];
+    }
+  | {
+      ok: false;
+      baseDir: string;
+      error: string;
+    };
+
+export type FlowbuilderReadSessionResult =
+  | {
+      ok: true;
+      baseDir: string;
+      manifest: FlowbuilderManifest;
+      state: FlowbuilderState;
+    }
+  | {
+      ok: false;
+      baseDir: string;
+      sessionId: string;
+      error: string;
+    };
+
 export type FlowTemplateId =
   | "github_digest"
   | "support_triage"

@@ -1,8 +1,14 @@
 import { app, shell, BrowserWindow, ipcMain } from "electron";
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
-import { Agent, CursorAgentError } from "@cursor/sdk";
+import { existsSync, readFileSync, readdirSync } from "fs";
+import { join, resolve } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
+import {
+  ManifestSchema,
+  StateSchema,
+  validateRefIntegrity,
+  type Manifest,
+  type State,
+} from "../../packages/flowbuilder/src/schema";
 import icon from "../../resources/icon.png?asset";
 
 type CursorChatRequest = {
@@ -19,6 +25,56 @@ type CursorChatResult =
       ok: false;
       error: string;
     };
+
+type CursorAgent = {
+  send(prompt: string): Promise<{
+    supports(feature: string): boolean;
+    stream(): AsyncIterable<unknown>;
+    wait(): Promise<{ status: string }>;
+  }>;
+  [Symbol.asyncDispose]?: () => Promise<void> | void;
+};
+
+type FlowbuilderSessionSummary = {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  nodeCount: number;
+};
+
+type FlowbuilderListSessionsResult =
+  | {
+      ok: true;
+      baseDir: string;
+      sessions: FlowbuilderSessionSummary[];
+    }
+  | {
+      ok: false;
+      baseDir: string;
+      error: string;
+    };
+
+type FlowbuilderReadSessionRequest = {
+  sessionId: string;
+};
+
+type FlowbuilderReadSessionResult =
+  | {
+      ok: true;
+      baseDir: string;
+      manifest: Manifest;
+      state: State;
+    }
+  | {
+      ok: false;
+      baseDir: string;
+      sessionId: string;
+      error: string;
+    };
+
+const FLOWBUILDER_SESSION_ID_RE = /^s_[0-9a-z]{12}$/;
 
 function loadLocalEnv(): void {
   const envPath = join(process.cwd(), ".env.local");
@@ -63,6 +119,107 @@ function configureCursorRipgrepPath(): void {
   }
 }
 
+function getFlowbuilderBaseDir(): string {
+  const override = process.env.FLOW_BUILD_FLOWBUILDER_BASE?.trim();
+  return override ? resolve(override) : join(app.getPath("userData"), "flowbuilder");
+}
+
+function readJsonFile(path: string): unknown {
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function assertSupportedSchemaVersion(raw: unknown, path: string): void {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "schemaVersion" in raw &&
+    typeof raw.schemaVersion === "number" &&
+    raw.schemaVersion !== 1
+  ) {
+    throw new Error(`unsupported schemaVersion ${raw.schemaVersion} in ${path}`);
+  }
+}
+
+function readFlowbuilderSession(baseDir: string, sessionId: string): { manifest: Manifest; state: State } {
+  if (!FLOWBUILDER_SESSION_ID_RE.test(sessionId)) {
+    throw new Error(`invalid flowbuilder session id: ${sessionId}`);
+  }
+
+  const sessionDir = join(baseDir, "sessions", sessionId);
+  const manifestPath = join(sessionDir, "manifest.json");
+  const statePath = join(sessionDir, "state.json");
+
+  const rawManifest = readJsonFile(manifestPath);
+  assertSupportedSchemaVersion(rawManifest, manifestPath);
+  const manifest = ManifestSchema.parse(rawManifest);
+  if (manifest.id !== sessionId) {
+    throw new Error(`manifest id ${manifest.id} does not match directory ${sessionId}`);
+  }
+
+  const rawState = readJsonFile(statePath);
+  assertSupportedSchemaVersion(rawState, statePath);
+  const state = StateSchema.parse(rawState);
+  validateRefIntegrity(state);
+
+  return { manifest, state };
+}
+
+function registerFlowbuilderIpc(): void {
+  ipcMain.handle("flowbuilder:list-sessions", async (): Promise<FlowbuilderListSessionsResult> => {
+    const baseDir = getFlowbuilderBaseDir();
+    const sessionsDir = join(baseDir, "sessions");
+    if (!existsSync(sessionsDir)) {
+      return { ok: true, baseDir, sessions: [] };
+    }
+
+    try {
+      const sessions = readdirSync(sessionsDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+          const { manifest, state } = readFlowbuilderSession(baseDir, entry.name);
+          return {
+            id: manifest.id,
+            name: manifest.name,
+            description: manifest.description,
+            createdAt: manifest.createdAt,
+            updatedAt: manifest.updatedAt,
+            nodeCount: state.nodes.length,
+          };
+        })
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+      return { ok: true, baseDir, sessions };
+    } catch (error) {
+      return {
+        ok: false,
+        baseDir,
+        error: error instanceof Error ? error.message : "Unknown flowbuilder session read error",
+      };
+    }
+  });
+
+  ipcMain.handle(
+    "flowbuilder:read-session",
+    async (_event, { sessionId }: FlowbuilderReadSessionRequest): Promise<FlowbuilderReadSessionResult> => {
+      const baseDir = getFlowbuilderBaseDir();
+      try {
+        return {
+          ok: true,
+          baseDir,
+          ...readFlowbuilderSession(baseDir, sessionId),
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          baseDir,
+          sessionId,
+          error: error instanceof Error ? error.message : "Unknown flowbuilder session read error",
+        };
+      }
+    },
+  );
+}
+
 function extractAssistantText(event: unknown): string {
   if (!event || typeof event !== "object") return "";
   const maybeEvent = event as {
@@ -81,15 +238,23 @@ function extractAssistantText(event: unknown): string {
   );
 }
 
+function formatCursorSdkError(error: unknown): string {
+  if (!(error instanceof Error)) return "Unknown Cursor SDK error";
+
+  const maybeRetryable = error as Error & { isRetryable?: unknown };
+  return `${error.message}${maybeRetryable.isRetryable === true ? " (retryable)" : ""}`;
+}
+
 ipcMain.handle("cursor-chat:send", async (event, { requestId, prompt }: CursorChatRequest): Promise<CursorChatResult> => {
   const apiKey = process.env.CURSOR_API_KEY;
   if (!apiKey) {
     return { ok: false, error: "CURSOR_API_KEY is missing. Add it to .env.local or the app environment." };
   }
 
-  let agent: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  let agent: CursorAgent | undefined;
 
   try {
+    const { Agent } = await import("@cursor/sdk");
     agent = await Agent.create({
       apiKey,
       model: { id: "composer-2" },
@@ -111,21 +276,17 @@ ipcMain.handle("cursor-chat:send", async (event, { requestId, prompt }: CursorCh
     event.sender.send("cursor-chat:event", { requestId, type: "done", status: result.status });
     return { ok: true, status: result.status };
   } catch (error) {
-    const message =
-      error instanceof CursorAgentError
-        ? `${error.message}${error.isRetryable ? " (retryable)" : ""}`
-        : error instanceof Error
-          ? error.message
-          : "Unknown Cursor SDK error";
+    const message = formatCursorSdkError(error);
     event.sender.send("cursor-chat:event", { requestId, type: "error", error: message });
     return { ok: false, error: message };
   } finally {
-    await agent?.[Symbol.asyncDispose]();
+    await agent?.[Symbol.asyncDispose]?.();
   }
 });
 
 loadLocalEnv();
 configureCursorRipgrepPath();
+registerFlowbuilderIpc();
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

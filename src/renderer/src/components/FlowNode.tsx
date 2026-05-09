@@ -79,25 +79,27 @@ export function FlowNode({
       <div
         className="fc-port fc-port-r"
         style={isPrompt ? { top: "auto", bottom: "26px", transform: "none" } : undefined}
-        title="Drag to connect"
+        title={onPortDown ? "Drag to connect" : undefined}
         onMouseDown={(event) => {
           event.stopPropagation();
           onPortDown?.(event, n);
         }}
       />
-      <button
-        className="fc-del"
-        title="Delete step"
-        onMouseDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          onDelete?.();
-        }}
-      >
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.2">
-          <path d="M6 6l12 12M18 6L6 18" />
-        </svg>
-      </button>
+      {onDelete && (
+        <button
+          className="fc-del"
+          title="Delete step"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      )}
       {status === "running" && <div className="fc-pulse" />}
       {status === "done" && (
         <div className="fc-badge">

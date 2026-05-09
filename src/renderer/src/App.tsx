@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { FLOW_TEMPLATES, PREVIOUS_FLOWS, matchTemplate } from "./data/flowTemplates";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { FLOW_TEMPLATES, matchTemplate } from "./data/flowTemplates";
 import { NODE_W, NODE_H, GAP_X } from "./data/constants";
 import { cloneFlow, topoLayers, nodePos } from "./utils/flow";
-
+import { flowbuilderStateToFlow } from "./utils/flowbuilder";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { EmptyState } from "./components/EmptyState";
@@ -11,13 +11,21 @@ import { FlowCanvas } from "./components/FlowCanvas";
 import { FlowLegend } from "./components/FlowLegend";
 import { NodeInspector } from "./components/NodeInspector";
 import { PromptBox } from "./components/PromptBox";
-import type { ChatMessage, Flow, FlowEdge, FlowNode, FlowTemplateId, PaletteItem, RunState } from "./types";
+import type {
+  ChatMessage,
+  Flow,
+  FlowEdge,
+  FlowNode,
+  FlowTemplateId,
+  FlowbuilderManifest,
+  FlowbuilderSessionSummary,
+  PaletteItem,
+  RunState,
+} from "./types";
 
 // Static design constants (replaces the previous tweakable values)
 const ACCENT = "#5fc88f";
 const DENSITY = "regular" as const;
-
-const INITIAL_TEMPLATE_ID: FlowTemplateId = "release_announce";
 
 const SMART_ADD_ITEMS = {
   prompt: {
@@ -30,9 +38,9 @@ const SMART_ADD_ITEMS = {
   slack: { type: "output", icon: "slack", label: "Slack message", sub: "#channel" },
   email: { type: "output", icon: "mail", label: "Send email", sub: "smtp" },
   webhook: { type: "trigger", icon: "webhook", label: "Webhook", sub: "POST /event" },
-  http: { type: "http", icon: "http", label: "HTTP request", sub: "GET /…" },
+  http: { type: "http", icon: "http", label: "HTTP request", sub: "GET /..." },
   llm: { type: "llm", icon: "llm", label: "LLM call", sub: "claude-sonnet" },
-  filter: { type: "filter", icon: "filter", label: "Filter", sub: "where …" },
+  filter: { type: "filter", icon: "filter", label: "Filter", sub: "where ..." },
   approval: { type: "human", icon: "user", label: "Human approval", sub: "slack approval" },
   database: { type: "storage", icon: "db", label: "Database", sub: "supabase · query" },
   spreadsheet: { type: "storage", icon: "sheet", label: "Spreadsheet", sub: "google sheets" },
@@ -41,34 +49,195 @@ const SMART_ADD_ITEMS = {
   code: { type: "transform", icon: "code", label: "Code", sub: "javascript" },
 } satisfies Record<string, PaletteItem>;
 
+function SessionPanel({
+  title,
+  body,
+  detail,
+  action,
+}: {
+  title: string;
+  body: string;
+  detail?: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+}) {
+  return (
+    <div className="session-empty">
+      <div className="empty-mark">
+        <svg viewBox="0 0 40 40" width="42" height="42" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <rect x="3" y="14" width="10" height="12" rx="3" />
+          <rect x="27" y="6" width="10" height="12" rx="3" />
+          <rect x="27" y="22" width="10" height="12" rx="3" />
+          <path d="M13 20h7M20 20v-8h7M20 20v8h7" />
+        </svg>
+      </div>
+      <h1 className="empty-h">{title}</h1>
+      <p className="empty-sub">{body}</p>
+      {detail && <code className="session-path">{detail}</code>}
+      {action && (
+        <button className="session-action" onClick={action.onClick}>
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function App() {
-  const [selectedId, setSelectedId] = useState<FlowTemplateId | null>(INITIAL_TEMPLATE_ID);
-  const [flow, setFlow] = useState<Flow | null>(() => cloneFlow(FLOW_TEMPLATES[INITIAL_TEMPLATE_ID]));
+  const [sessions, setSessions] = useState<FlowbuilderSessionSummary[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [localFlowId, setLocalFlowId] = useState<FlowTemplateId | null>(null);
+  const [baseDir, setBaseDir] = useState("");
+  const [manifest, setManifest] = useState<FlowbuilderManifest | null>(null);
+  const [flow, setFlow] = useState<Flow | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [loadingSession, setLoadingSession] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
   const [running, setRunning] = useState(false);
   const [runState, setRunState] = useState<RunState>({});
   const [refineVal, setRefineVal] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    { role: "user", text: "Announce a release in parallel to email, Slack, Twitter, and the blog" },
-    {
-      role: "ai",
-      text: FLOW_TEMPLATES.release_announce.summary,
-      steps: [
-        "Identified 14 steps with a 4-way fan-out and fan-in",
-        "Mapped to 6 node types in your workspace",
-        "Connectors are configured · ready to execute",
-      ],
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatHeight, setChatHeight] = useState(180);
+  const [reloadKey, setReloadKey] = useState(0);
   const stopRef = useRef(false);
+
+  const readOnlySession = Boolean(selectedSessionId);
+
+  const loadSessions = useCallback(async (preferredId?: string | null): Promise<void> => {
+    setLoadingSessions(true);
+    setError(null);
+
+    try {
+      const result = await window.api.flowbuilder.listSessions();
+      setBaseDir(result.baseDir);
+
+      if (!result.ok) {
+        setSessions([]);
+        setSelectedSessionId(null);
+        setFlow(null);
+        setManifest(null);
+        setError(result.error);
+        return;
+      }
+
+      setSessions(result.sessions);
+      const nextId =
+        preferredId && result.sessions.some((session) => session.id === preferredId)
+          ? preferredId
+          : (result.sessions[0]?.id ?? null);
+      setSelectedSessionId(nextId);
+      if (!nextId) {
+        setFlow(null);
+        setManifest(null);
+      }
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unknown flowbuilder session list error");
+      setSessions([]);
+      setSelectedSessionId(null);
+      setFlow(null);
+      setManifest(null);
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  useEffect(() => {
+    if (!selectedSessionId) return;
+
+    let cancelled = false;
+    setLoadingSession(true);
+    setBuilding(true);
+    setError(null);
+    setFlow(null);
+    setManifest(null);
+    setFocusId(null);
+    setRunState({});
+    setLocalFlowId(null);
+
+    window.api.flowbuilder
+      .readSession(selectedSessionId)
+      .then((result) => {
+        if (cancelled) return;
+        setBaseDir(result.baseDir);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setManifest(result.manifest);
+        setFlow(flowbuilderStateToFlow(result.manifest, result.state));
+        setMessages([
+          { role: "user", text: `Open flowbuilder session: ${result.manifest.name}` },
+          {
+            role: "ai",
+            text: `${result.manifest.description || "Loaded flowbuilder session from disk."} This graph is read-only in the UI, but you can still chat about it here.`,
+          },
+        ]);
+      })
+      .catch((readError: unknown) => {
+        if (cancelled) return;
+        setError(readError instanceof Error ? readError.message : "Unknown flowbuilder session read error");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingSession(false);
+        setBuilding(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSessionId, reloadKey]);
+
+  function handleSelect(id: string): void {
+    if (id === selectedSessionId) return;
+    setSelectedSessionId(id);
+  }
+
+  function handleRefresh(): void {
+    void loadSessions(selectedSessionId);
+    if (selectedSessionId) setReloadKey((current) => current + 1);
+  }
+
+  function handleNew(): void {
+    setSelectedSessionId(null);
+    setLocalFlowId(null);
+    setManifest(null);
+    setFlow(null);
+    setBuilding(false);
+    setRunning(false);
+    setRunState({});
+    setMessages([]);
+    setFocusId(null);
+    setError(null);
+  }
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent): void {
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && (event.key === "n" || event.key === "N")) {
+        event.preventDefault();
+        handleNew();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   function handleSubmit(text: string): void {
     const tplId = matchTemplate(text);
     const tpl = FLOW_TEMPLATES[tplId];
     setMessages((current) => [...current, { role: "user", text }]);
-    setSelectedId(tplId);
+    setSelectedSessionId(null);
+    setLocalFlowId(tplId);
+    setManifest(null);
     setBuilding(true);
     setRunState({});
     setFlow(null);
@@ -89,19 +258,6 @@ export function App() {
         },
       ]);
     }, 900);
-  }
-
-  function handleSelect(id: FlowTemplateId): void {
-    const tpl = FLOW_TEMPLATES[id];
-    setSelectedId(id);
-    setFlow(cloneFlow(tpl));
-    setBuilding(false);
-    setRunning(false);
-    setRunState({});
-    setMessages([
-      { role: "user", text: `Open flow: ${tpl.title}` },
-      { role: "ai", text: tpl.summary },
-    ]);
   }
 
   // Re-run the auto-layout: drop any user-set x/y coordinates and recompute
@@ -129,33 +285,8 @@ export function App() {
     });
   }
 
-  function handleNew(): void {
-    setSelectedId(null);
-    setFlow(null);
-    setBuilding(false);
-    setRunning(false);
-    setRunState({});
-    setMessages([]);
-    setFocusId(null);
-  }
-
-  // Cmd/Ctrl+N is the documented shortcut and works in app contexts
-  // (Electron / installed PWA). Browsers reserve plain ⌘N for opening a
-  // new window, so the shortcut effectively only fires here.
-  useEffect(() => {
-    function onKey(event: KeyboardEvent): void {
-      const mod = event.metaKey || event.ctrlKey;
-      if (mod && (event.key === "n" || event.key === "N")) {
-        event.preventDefault();
-        handleNew();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   async function handleRun(): Promise<void> {
-    if (!flow || running) return;
+    if (!flow || running || readOnlySession) return;
     stopRef.current = false;
     setRunning(true);
     const layers = topoLayers(flow);
@@ -216,6 +347,7 @@ export function App() {
   }
 
   function handleMoveNode(id: string, x: number, y: number): void {
+    if (readOnlySession) return;
     setFlow((current) =>
       current && {
         ...current,
@@ -225,6 +357,7 @@ export function App() {
   }
 
   function handleDeleteNode(id: string): void {
+    if (readOnlySession) return;
     setFlow((current) => {
       if (!current) return current;
 
@@ -258,6 +391,7 @@ export function App() {
   }
 
   function handleAddNode(spec: PaletteItem): void {
+    if (readOnlySession) return;
     setFlow((current) => {
       if (!current) return current;
       const rightmost = current.nodes.reduce(
@@ -291,6 +425,7 @@ export function App() {
   }
 
   function handleDeleteEdge(from: string, to: string): void {
+    if (readOnlySession) return;
     setFlow((current) =>
       current && {
         ...current,
@@ -299,10 +434,8 @@ export function App() {
     );
   }
 
-  // Add an edge from -> to. Dedupes against existing edges and rejects
-  // additions that would create a cycle (via forward DFS from `to`).
   function handleAddEdge(from: string, to: string): void {
-    if (!from || !to || from === to) return;
+    if (readOnlySession || !from || !to || from === to) return;
     setFlow((current) => {
       if (!current) return current;
       if (current.edges.some(([a, b]) => a === from && b === to)) return current;
@@ -324,6 +457,7 @@ export function App() {
   }
 
   function handlePromptChange(id: string, prompt: string): void {
+    if (readOnlySession) return;
     setFlow((current) =>
       current && {
         ...current,
@@ -337,6 +471,7 @@ export function App() {
       ? {
           title: flow.title,
           summary: flow.summary,
+          source: readOnlySession ? "flowbuilder session on disk (read-only)" : "local editable chat flow",
           nodes: flow.nodes.map(({ id, type, label, sub, col, row, prompt }) => ({
             id,
             type,
@@ -353,13 +488,12 @@ export function App() {
 
     return `You are FlowBuild's flow design copilot inside an Electron app.
 
-The user is chatting about the current visual automation flow. Help them think through dynamic changes to the flow, but do not edit files, do not run commands, and do not return JSON yet.
+The user is chatting about the current visual automation flow. Help them think through changes to the flow.
 
-For now, respond in concise natural language:
-- explain what changes you would make to nodes and edges
-- mention which existing nodes are affected by id and label when useful
-- call out any ambiguity before assuming a destructive change
-- if the user asks for an implementation, describe the intended flow mutation rather than producing code
+Important:
+- If the current source is read-only, do not claim the UI can save graph edits; describe what the agent or future writer would change.
+- If the current source is local editable chat flow, describe intended UI changes naturally.
+- Do not edit files, do not run commands, and do not return JSON yet.
 
 Current flow snapshot:
 ${JSON.stringify(flowContext, null, 2)}
@@ -402,8 +536,8 @@ ${userPrompt}`;
           }),
         );
       })
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : "Unknown Cursor SDK error";
+      .catch((chatError: unknown) => {
+        const message = chatError instanceof Error ? chatError.message : "Unknown Cursor SDK error";
         setMessages((current) =>
           current.map((item) =>
             item.id === id && item.role === "ai" ? { ...item, text: `Cursor SDK error: ${message}`, streaming: false } : item,
@@ -420,36 +554,38 @@ ${userPrompt}`;
     setMessages((current) => [...current, { role: "user", text: value }]);
     setRefineVal("");
 
-    if (/\b(run|execute|go|start|kick)\b/.test(lower) && !/stop/.test(lower)) {
-      setMessages((current) => [...current, { role: "ai", text: "Executing now — watch the canvas." }]);
-      window.setTimeout(() => void handleRun(), 250);
-      return;
-    }
+    if (!readOnlySession) {
+      if (/\b(run|execute|go|start|kick)\b/.test(lower) && !/stop/.test(lower)) {
+        setMessages((current) => [...current, { role: "ai", text: "Executing now — watch the canvas." }]);
+        window.setTimeout(() => void handleRun(), 250);
+        return;
+      }
 
-    if (/\b(stop|cancel|halt|abort)\b/.test(lower)) {
-      handleStop();
-      setMessages((current) => [...current, { role: "ai", text: "Stopped. Nothing was rolled back." }]);
-      return;
-    }
+      if (/\b(stop|cancel|halt|abort)\b/.test(lower)) {
+        handleStop();
+        setMessages((current) => [...current, { role: "ai", text: "Stopped. Nothing was rolled back." }]);
+        return;
+      }
 
-    if (/\b(reset|clear)\b/.test(lower)) {
-      handleReset();
-      setMessages((current) => [...current, { role: "ai", text: "Cleared the run state." }]);
-      return;
-    }
+      if (/\b(reset|clear)\b/.test(lower)) {
+        handleReset();
+        setMessages((current) => [...current, { role: "ai", text: "Cleared the run state." }]);
+        return;
+      }
 
-    const addMatch = lower.match(
-      /add (?:a |an )?(prompt|slack|email|webhook|http|llm|filter|approval|database|spreadsheet|schedule|transform|code)/,
-    );
-    if (addMatch) {
-      const kind = addMatch[1] as keyof typeof SMART_ADD_ITEMS;
-      const spec = SMART_ADD_ITEMS[kind];
-      handleAddNode(spec);
-      setMessages((current) => [
-        ...current,
-        { role: "ai", text: `Added a ${spec.label} step at the end. Drag it where you want it.` },
-      ]);
-      return;
+      const addMatch = lower.match(
+        /add (?:a |an )?(prompt|slack|email|webhook|http|llm|filter|approval|database|spreadsheet|schedule|transform|code)/,
+      );
+      if (addMatch) {
+        const kind = addMatch[1] as keyof typeof SMART_ADD_ITEMS;
+        const spec = SMART_ADD_ITEMS[kind];
+        handleAddNode(spec);
+        setMessages((current) => [
+          ...current,
+          { role: "ai", text: `Added a ${spec.label} step at the end. Drag it where you want it.` },
+        ]);
+        return;
+      }
     }
 
     runCursorChat(value);
@@ -458,36 +594,83 @@ ${userPrompt}`;
   return (
     <div className={`app density-${DENSITY}`} style={{ "--accent": ACCENT } as CSSProperties}>
       <Sidebar
-        flows={PREVIOUS_FLOWS}
-        selectedId={selectedId}
-        runningId={running ? selectedId : null}
+        sessions={sessions}
+        selectedId={selectedSessionId}
+        localActive={Boolean(localFlowId || (!selectedSessionId && !flow))}
+        loading={loadingSessions}
+        error={error}
+        baseDir={baseDir}
         onSelect={handleSelect}
         onNew={handleNew}
+        onRefresh={handleRefresh}
       />
 
       <main className="main">
         <TopBar flow={flow} onHome={handleNew} onTidy={handleTidy} />
 
-        {!flow && !building && <EmptyState onSubmit={handleSubmit} />}
+        {!selectedSessionId && !flow && !building && <EmptyState onSubmit={handleSubmit} />}
 
-        {(flow || building) && (
-          <div className="chatflow">
+        {selectedSessionId && loadingSessions && (
+          <SessionPanel title="Loading sessions" body="Reading flowbuilder sessions from disk." detail={baseDir} />
+        )}
+
+        {selectedSessionId && !loadingSessions && error && (
+          <SessionPanel
+            title="Could not load flowbuilder state"
+            body={error}
+            detail={baseDir}
+            action={{ label: "Try again", onClick: handleRefresh }}
+          />
+        )}
+
+        {selectedSessionId && !loadingSessions && !error && sessions.length === 0 && (
+          <SessionPanel
+            title="No flowbuilder sessions yet"
+            body="The Electron UI reads existing sessions from disk. For local development, point FLOW_BUILD_FLOWBUILDER_BASE at the mock fixture directory."
+            detail={baseDir || "FLOW_BUILD_FLOWBUILDER_BASE=mock/flowbuilder pnpm dev"}
+            action={{ label: "Refresh sessions", onClick: handleRefresh }}
+          />
+        )}
+
+        {(flow || building || (selectedSessionId && loadingSession)) && !error && (
+          <div className={`chatflow ${readOnlySession ? "chatflow-session" : ""}`}>
             <div className="cf-stage">
-              <div className="cf-canvas-wrap">
-                <FlowCanvas
-                  flow={flow}
-                  runState={runState}
-                  building={building}
-                  focusId={focusId}
-                  onFocus={setFocusId}
-                  onMoveNode={handleMoveNode}
-                  onDeleteNode={handleDeleteNode}
-                  onDeleteEdge={handleDeleteEdge}
-                  onAddEdge={handleAddEdge}
-                  onPromptChange={handlePromptChange}
+              {readOnlySession && (
+                <div className="session-banner">
+                  <span>Read-only graph</span>
+                  <strong>{manifest?.id ?? selectedSessionId}</strong>
+                  {manifest && <span>{new Date(manifest.updatedAt).toLocaleString()}</span>}
+                </div>
+              )}
+              {readOnlySession && loadingSession && !flow ? (
+                <SessionPanel title="Loading session" body="Reading manifest and state from disk." detail={selectedSessionId ?? undefined} />
+              ) : flow && flow.nodes.length === 0 ? (
+                <SessionPanel
+                  title="Empty session"
+                  body={
+                    readOnlySession
+                      ? "This session has a valid state file, but it does not contain any nodes yet."
+                      : "Describe the automation below to generate a local editable flow."
+                  }
+                  detail={manifest?.id}
                 />
-              </div>
-              <FlowLegend />
+              ) : (
+                <div className="cf-canvas-wrap">
+                  <FlowCanvas
+                    flow={flow}
+                    runState={runState}
+                    building={building}
+                    focusId={focusId}
+                    onFocus={setFocusId}
+                    onMoveNode={readOnlySession ? undefined : handleMoveNode}
+                    onDeleteNode={readOnlySession ? undefined : handleDeleteNode}
+                    onDeleteEdge={readOnlySession ? undefined : handleDeleteEdge}
+                    onAddEdge={readOnlySession ? undefined : handleAddEdge}
+                    onPromptChange={readOnlySession ? undefined : handlePromptChange}
+                  />
+                </div>
+              )}
+              {flow && flow.nodes.length > 0 && <FlowLegend />}
             </div>
 
             <div className="cf-bottom">
@@ -497,7 +680,11 @@ ${userPrompt}`;
                   value={refineVal}
                   onChange={setRefineVal}
                   onSubmit={handleRefine}
-                  placeholder="Refine the flow… e.g. 'add a Slack approval before sending'"
+                  placeholder={
+                    readOnlySession
+                      ? "Chat about this read-only session..."
+                      : "Refine the flow... e.g. 'add a Slack approval before sending'"
+                  }
                 />
               </div>
             </div>
@@ -508,6 +695,7 @@ ${userPrompt}`;
           <NodeInspector
             node={flow.nodes.find((node) => node.id === focusId)}
             status={runState[focusId]}
+            readOnly={readOnlySession}
             onClose={() => setFocusId(null)}
           />
         )}

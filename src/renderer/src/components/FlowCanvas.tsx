@@ -63,6 +63,7 @@ export function FlowCanvas({
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const readOnly = !onMoveNode && !onDeleteNode && !onDeleteEdge && !onAddEdge && !onPromptChange;
 
   // Esc clears the current selection.
   useEffect(() => {
@@ -82,6 +83,7 @@ export function FlowCanvas({
   const H = maxY + PAD_Y;
 
   function handlePortMouseDown(event: MouseEvent<HTMLDivElement>, node: FlowNodeModel): void {
+    if (!onAddEdge) return;
     if (event.button !== 0) return;
     const isPrompt = node.type === "prompt";
     const { x, y } = nodePos(node);
@@ -164,6 +166,18 @@ export function FlowCanvas({
 
   function handleNodeMouseDown(event: MouseEvent<HTMLDivElement>, node: FlowNodeModel): void {
     if (event.button !== 0) return;
+    if (!onMoveNode) {
+      if (event.shiftKey) {
+        const next = new Set(selectedIds);
+        if (next.has(node.id)) next.delete(node.id);
+        else next.add(node.id);
+        setSelectedIds(next);
+      } else {
+        setSelectedIds(new Set([node.id]));
+        onFocus?.(node.id);
+      }
+      return;
+    }
     const currentFlow = flow;
     if (!currentFlow) return;
     const { x, y } = nodePos(node);
@@ -364,7 +378,7 @@ export function FlowCanvas({
   }
 
   return (
-    <div className="fc-wrap" onMouseDown={handleBgMouseDown}>
+    <div className={`fc-wrap ${readOnly ? "is-readonly" : ""}`} onMouseDown={handleBgMouseDown}>
       <div
         className="fc-canvas"
         ref={canvasRef}
@@ -396,18 +410,20 @@ export function FlowCanvas({
                   markerEnd="url(#fc-arrow)"
                   style={revealStyle}
                 />
-                <path
-                  d={d}
-                  className="fc-edge-hit"
-                  onMouseEnter={() => setHoverEdge(key)}
-                  onMouseLeave={() => setHoverEdge((current) => (current === key ? null : current))}
-                />
+                {onDeleteEdge && (
+                  <path
+                    d={d}
+                    className="fc-edge-hit"
+                    onMouseEnter={() => setHoverEdge(key)}
+                    onMouseLeave={() => setHoverEdge((current) => (current === key ? null : current))}
+                  />
+                )}
               </g>
             );
           })}
         </svg>
 
-        {flow.edges.map(([from, to], i) => {
+        {onDeleteEdge && flow.edges.map(([from, to], i) => {
           const fromNode = nodeMap[from];
           const toNode = nodeMap[to];
           if (!fromNode || !toNode) return null;
@@ -446,8 +462,8 @@ export function FlowCanvas({
             connecting={Boolean(connecting && connecting.fromId !== node.id && connecting.hoverId === node.id)}
             selected={selectedIds.has(node.id)}
             onMouseDown={(event) => handleNodeMouseDown(event, node)}
-            onPortDown={handlePortMouseDown}
-            onDelete={() => onDeleteNode?.(node.id)}
+            onPortDown={onAddEdge ? handlePortMouseDown : undefined}
+            onDelete={onDeleteNode ? () => onDeleteNode(node.id) : undefined}
             onPromptChange={onPromptChange}
           />
         ))}

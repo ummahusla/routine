@@ -1,59 +1,77 @@
 import { useMemo, useState } from "react";
 import { Logo } from "./Logo";
-import type { FlowTemplateId, PreviousFlow } from "../types";
+import type { FlowbuilderSessionSummary } from "../types";
 
 type FlowItemProps = {
-  flow: PreviousFlow;
+  session: FlowbuilderSessionSummary;
   active: boolean;
-  running: boolean;
   onClick: () => void;
 };
 
-function FlowItem({ flow, active, running, onClick }: FlowItemProps) {
+function relativeTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return value;
+
+  const diffMs = Date.now() - timestamp;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < minute) return "just now";
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`;
+  if (diffMs < 2 * day) return "yesterday";
+  return new Date(timestamp).toLocaleDateString();
+}
+
+function FlowItem({ session, active, onClick }: FlowItemProps) {
   return (
-    <button
-      className={`sb-item ${active ? "is-active" : ""} ${running ? "is-running" : ""}`}
-      onClick={onClick}
-    >
-      <span className={`sb-dot sb-dot-${running ? "running" : flow.status}`} />
-      <span className="sb-item-label">{flow.label}</span>
-      {running ? (
-        <span className="sb-item-running">
-          <span className="sb-bars">
-            <i />
-            <i />
-            <i />
-          </span>
-          running
-        </span>
-      ) : (
-        <span className="sb-item-when">{flow.when}</span>
-      )}
+    <button className={`sb-item sb-session ${active ? "is-active" : ""}`} onClick={onClick}>
+      <span className="sb-dot sb-dot-deployed" />
+      <span className="sb-item-main">
+        <span className="sb-item-label">{session.name}</span>
+        <span className="sb-item-id">{session.id}</span>
+      </span>
+      <span className="sb-item-meta">
+        <span>{session.nodeCount} nodes</span>
+        <span>{relativeTime(session.updatedAt)}</span>
+      </span>
     </button>
   );
 }
 
 type SidebarProps = {
-  flows: PreviousFlow[];
-  selectedId: FlowTemplateId | null;
-  runningId: FlowTemplateId | null;
-  onSelect: (id: FlowTemplateId) => void;
+  sessions: FlowbuilderSessionSummary[];
+  selectedId: string | null;
+  localActive: boolean;
+  loading: boolean;
+  error: string | null;
+  baseDir: string;
+  onSelect: (id: string) => void;
   onNew: () => void;
+  onRefresh: () => void;
 };
 
-export function Sidebar({ flows, selectedId, runningId, onSelect, onNew }: SidebarProps) {
+export function Sidebar({
+  sessions,
+  selectedId,
+  localActive,
+  loading,
+  error,
+  baseDir,
+  onSelect,
+  onNew,
+  onRefresh,
+}: SidebarProps) {
   const [q, setQ] = useState("");
-  const grouped = useMemo(() => {
-    const today: PreviousFlow[] = [];
-    const earlier: PreviousFlow[] = [];
-    flows
-      .filter((flow) => flow.label.toLowerCase().includes(q.toLowerCase()))
-      .forEach((flow) => {
-        if (/h ago|yesterday/i.test(flow.when)) today.push(flow);
-        else earlier.push(flow);
-      });
-    return { today, earlier };
-  }, [flows, q]);
+  const filtered = useMemo(
+    () =>
+      sessions.filter((session) => {
+        const query = q.toLowerCase();
+        return session.name.toLowerCase().includes(query) || session.id.toLowerCase().includes(query);
+      }),
+    [sessions, q],
+  );
 
   return (
     <aside className="sb">
@@ -65,12 +83,22 @@ export function Sidebar({ flows, selectedId, runningId, onSelect, onNew }: Sideb
         <div className="sb-brand-tag">beta</div>
       </div>
 
-      <button className="sb-new" onClick={onNew}>
+      <button className={`sb-new ${localActive ? "is-active" : ""}`} onClick={onNew}>
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12 5v14M5 12h14" />
         </svg>
-        <span>New flow</span>
+        <span>New chat</span>
         <kbd>⌘ N</kbd>
+      </button>
+
+      <button className="sb-refresh" onClick={onRefresh}>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 12a9 9 0 0 1-15.4 6.4L3 16" />
+          <path d="M3 21v-5h5" />
+          <path d="M3 12a9 9 0 0 1 15.4-6.4L21 8" />
+          <path d="M21 3v5h-5" />
+        </svg>
+        <span>{loading ? "Loading sessions" : "Refresh sessions"}</span>
       </button>
 
       <div className="sb-search">
@@ -78,39 +106,36 @@ export function Sidebar({ flows, selectedId, runningId, onSelect, onNew }: Sideb
           <circle cx="11" cy="11" r="6" />
           <path d="M20 20l-3.5-3.5" />
         </svg>
-        <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search flows" />
+        <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search sessions" />
       </div>
 
       <div className="sb-section">
-        {grouped.today.length > 0 && <div className="sb-heading">Today</div>}
-        {grouped.today.map((flow) => (
-          <FlowItem
-            key={flow.id}
-            flow={flow}
-            active={flow.id === selectedId}
-            running={flow.id === runningId || flow.status === "running"}
-            onClick={() => onSelect(flow.id)}
-          />
-        ))}
-
-        {grouped.earlier.length > 0 && <div className="sb-heading">Earlier</div>}
-        {grouped.earlier.map((flow) => (
-          <FlowItem
-            key={flow.id}
-            flow={flow}
-            active={flow.id === selectedId}
-            running={flow.id === runningId || flow.status === "running"}
-            onClick={() => onSelect(flow.id)}
-          />
-        ))}
+        <div className="sb-heading">Flowbuilder sessions</div>
+        {loading && <div className="sb-muted">Reading manifests from disk...</div>}
+        {!loading && error && <div className="sb-error">{error}</div>}
+        {!loading && !error && filtered.length === 0 && (
+          <div className="sb-muted">{sessions.length === 0 ? "No sessions found." : "No sessions match your search."}</div>
+        )}
+        {!loading &&
+          !error &&
+          filtered.map((session) => (
+            <FlowItem
+              key={session.id}
+              session={session}
+              active={session.id === selectedId}
+              onClick={() => onSelect(session.id)}
+            />
+          ))}
       </div>
 
       <div className="sb-foot">
         <div className="sb-user">
-          <div className="sb-avatar">JK</div>
+          <div className="sb-avatar">FB</div>
           <div className="sb-meta">
-            <div className="sb-name">Jamie Kim</div>
-            <div className="sb-org">Pumpur Labs · Pro</div>
+            <div className="sb-name">Disk base</div>
+            <div className="sb-org" title={baseDir}>
+              {baseDir || "Resolving..."}
+            </div>
           </div>
           <button className="sb-ico" title="Settings">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">

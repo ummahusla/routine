@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "s_branch000000",
+  "name": "Support triage branch",
+  "description": "Classify a support ticket, fan out urgent and routine paths, merge, and return a response plan.",
+  "createdAt": "2026-05-09T11:00:00.000Z",
+  "updatedAt": "2026-05-09T11:45:00.000Z"
+}

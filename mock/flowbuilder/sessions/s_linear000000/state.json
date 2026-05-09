@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "input_repo",
+      "type": "input",
+      "value": {
+        "owner": "ummahusla",
+        "repo": "flow-build",
+        "label": "flow-build repository"
+      }
+    },
+    {
+      "id": "fetch_issues",
+      "type": "flow",
+      "flow": "github/fetch-issues",
+      "params": {
+        "state": "open",
+        "limit": 20
+      }
+    },
+    {
+      "id": "digest_output",
+      "type": "output",
+      "value": {
+        "format": "markdown",
+        "destination": "chat"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "input_repo",
+      "to": "fetch_issues"
+    },
+    {
+      "from": "fetch_issues",
+      "to": "digest_output"
+    }
+  ]
+}

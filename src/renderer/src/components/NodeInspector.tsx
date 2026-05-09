@@ -5,15 +5,18 @@ import type { FlowNode, NodeStatus } from "../types";
 type NodeInspectorProps = {
   node: FlowNode | undefined;
   status: NodeStatus | undefined;
+  readOnly?: boolean;
   onClose: () => void;
 };
 
-export function NodeInspector({ node, status, onClose }: NodeInspectorProps) {
+export function NodeInspector({ node, status, readOnly, onClose }: NodeInspectorProps) {
   if (!node) return null;
   const color = TYPE_COLORS[node.type] || TYPE_COLORS.transform;
 
   const statusText =
-    status === "running"
+    readOnly
+      ? "Idle · read-only"
+      : status === "running"
       ? "Executing…"
       : status === "done"
         ? "Completed in 1.2s"
@@ -61,8 +64,14 @@ export function NodeInspector({ node, status, onClose }: NodeInspectorProps) {
         </ul>
       </div>
       <div className="ins-foot">
-        <button className="ins-btn">Open node config</button>
-        <button className="ins-btn ins-btn-ghost">Replay from here</button>
+        {readOnly ? (
+          <div className="ins-note">This graph is read from disk. The agent owns state changes for this iteration.</div>
+        ) : (
+          <>
+            <button className="ins-btn">Open node config</button>
+            <button className="ins-btn ins-btn-ghost">Replay from here</button>
+          </>
+        )}
       </div>
     </aside>
   );
