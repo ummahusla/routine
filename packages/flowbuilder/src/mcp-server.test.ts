@@ -7,6 +7,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { startFlowbuilderMcpServer } from "./mcp-server.js";
 import { SessionManager } from "./session.js";
 import type { Manifest, State } from "./schema.js";
+import type { RunResult } from "@flow-build/engine";
 
 let baseDir: string;
 const sessionId = "s_abc123def456";
@@ -188,6 +189,57 @@ describe("flowbuilder_execute_flow tool", () => {
       const text = (result.content as { type: string; text: string }[])[0]?.text ?? "";
       expect(JSON.parse(text)).toEqual({ ok: true, runId: "RUN_ABC", sessionId: session.sessionId });
       expect(calls).toEqual([session.sessionId]);
+    } finally {
+      await handle.close();
+    }
+  });
+});
+
+describe("flowbuilder_get_run_result tool", () => {
+  it("returns disk state without waitMs", async () => {
+    const session = setupSession();
+    const result: RunResult = {
+      manifest: { runId: "r1", sessionId: session.sessionId, startedAt: "t", status: "succeeded" },
+      events: [],
+      outputs: { o: { text: "hi" } },
+    };
+    const handle = await startFlowbuilderMcpServer({
+      session,
+      runStarter: async () => "r1",
+      runResultReader: async () => result,
+      waitForRunEnd: async () => {},
+    });
+    try {
+      const r = await withClient(handle.url, (c) =>
+        c.callTool({ name: "flowbuilder_get_run_result", arguments: { runId: "r1" } }),
+      );
+      const body = JSON.parse((r.content as { type: string; text: string }[])[0]?.text ?? "");
+      expect(body.ok).toBe(true);
+      expect(body.status).toBe("succeeded");
+      expect(body.outputs.o.text).toBe("hi");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("invokes waitForRunEnd when waitMs > 0", async () => {
+    const session = setupSession();
+    let waitCalledWith: { runId?: string; ms?: number } = {};
+    const handle = await startFlowbuilderMcpServer({
+      session,
+      runStarter: async () => "r1",
+      runResultReader: async () => ({
+        manifest: { runId: "r1", sessionId: session.sessionId, startedAt: "t", status: "succeeded" },
+        events: [],
+        outputs: {},
+      }),
+      waitForRunEnd: async (runId, ms) => { waitCalledWith = { runId, ms }; },
+    });
+    try {
+      await withClient(handle.url, (c) =>
+        c.callTool({ name: "flowbuilder_get_run_result", arguments: { runId: "r1", waitMs: 5000 } }),
+      );
+      expect(waitCalledWith).toEqual({ runId: "r1", ms: 5000 });
     } finally {
       await handle.close();
     }

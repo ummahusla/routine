@@ -41,8 +41,8 @@ function asTextResult(payload: unknown): {
 function buildMcpServer(
   session: SessionManager,
   runStarter: RunStarter,
-  _runResultReader: RunResultReader,
-  _waitForRunEnd: RunWaiter,
+  runResultReader: RunResultReader,
+  waitForRunEnd: RunWaiter,
 ): McpServer {
   const mcp = new McpServer(
     { name: "flowbuilder", version: "0.0.0" },
@@ -98,6 +98,38 @@ function buildMcpServer(
       try {
         const runId = await runStarter(session.sessionId);
         return asTextResult({ ok: true, runId, sessionId: session.sessionId });
+      } catch (e) {
+        return asTextResult({ ok: false, error: errorToToolMessage(e) });
+      }
+    },
+  );
+
+  const GetRunResultInput = z.object({
+    runId: z.string().min(1),
+    waitMs: z.number().int().min(0).max(60_000).optional(),
+  });
+
+  mcp.tool(
+    "flowbuilder_get_run_result",
+    "Fetch the result of a previously started run. If waitMs (max 60000) is set, blocks server-side up to that long for run completion; otherwise returns current on-disk state.",
+    GetRunResultInput.shape,
+    async (raw) => {
+      const parsed = GetRunResultInput.safeParse(raw);
+      if (!parsed.success) {
+        return asTextResult({ ok: false, error: `validation: ${parsed.error.message}` });
+      }
+      try {
+        if (parsed.data.waitMs && parsed.data.waitMs > 0) {
+          await waitForRunEnd(parsed.data.runId, parsed.data.waitMs);
+        }
+        const result = await runResultReader(session.sessionId, parsed.data.runId);
+        return asTextResult({
+          ok: true,
+          status: result.manifest.status,
+          finalOutput: result.events.find((e) => e.type === "run_end")?.finalOutput,
+          outputs: result.outputs,
+          error: result.manifest.error,
+        });
       } catch (e) {
         return asTextResult({ ok: false, error: errorToToolMessage(e) });
       }
