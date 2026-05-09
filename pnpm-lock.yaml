@@ -110,6 +110,9 @@ importers:
         specifier: ^1.0.0
         version: 1.0.12
     devDependencies:
+      '@flow-build/flowbuilder':
+        specifier: workspace:*
+        version: link:../flowbuilder
       '@flow-build/rote':
         specifier: workspace:*
         version: link:../rote
