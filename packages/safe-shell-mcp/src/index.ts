@@ -1,2 +1,6 @@
-// Public exports filled in by Task 4.
-export {};
+export {
+  startSafeShellMcpServer,
+  type SafeShellMcpHandle,
+  type SafeShellMcpStartOptions,
+} from "./start.js";
+export type { SafeShellMcpOptions } from "./server.js";

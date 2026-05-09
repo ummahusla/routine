@@ -1,7 +1,9 @@
+import { request } from "node:http";
 import { describe, it, expect } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { buildMcpServer } from "./server.js";
+import { startSafeShellMcpServer } from "./start.js";
 
 async function pair(): Promise<{ client: Client; close: () => Promise<void> }> {
   const server = buildMcpServer({ defaultCwd: process.cwd() });
@@ -92,6 +94,39 @@ describe("safe-shell mcp server", () => {
       expect(props.cwd?.type).toBe("string");
     } finally {
       await close();
+    }
+  });
+});
+
+describe("startSafeShellMcpServer", () => {
+  it("listens on a 127.0.0.1 port and rejects non-loopback hosts", async () => {
+    const handle = await startSafeShellMcpServer({ defaultCwd: process.cwd() });
+    try {
+      expect(handle.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
+
+      // Wrong Host header → 403. We use node:http directly because undici's
+      // fetch (Node 22) strips/overrides the `host` header silently, which
+      // would let the request slip past the loopback check.
+      const status = await new Promise<number>((resolve, reject) => {
+        const req = request(
+          {
+            host: "127.0.0.1",
+            port: handle.port,
+            path: "/mcp",
+            method: "POST",
+            headers: { "content-type": "application/json", host: "evil.example" },
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on("error", reject);
+        req.end(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+      });
+      expect(status).toBe(403);
+    } finally {
+      await handle.close();
     }
   });
 });
