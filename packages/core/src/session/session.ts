@@ -135,7 +135,7 @@ export class Session {
     const host = this.host;
     const ctx: RuntimeContext = {
       cwd: this.workspaceDir,
-      model: this.model,
+      model: effectiveModel,
       runId: turnId,
       signal: abort.signal,
       logger: this.logger,
