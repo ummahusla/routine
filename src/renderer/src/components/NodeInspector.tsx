@@ -7,9 +7,10 @@ type NodeInspectorProps = {
   status: NodeStatus | undefined;
   readOnly?: boolean;
   onClose: () => void;
+  onReplay?: () => void;
 };
 
-export function NodeInspector({ node, status, readOnly, onClose }: NodeInspectorProps) {
+export function NodeInspector({ node, status, readOnly, onClose, onReplay }: NodeInspectorProps) {
   if (!node) return null;
   const color = TYPE_COLORS[node.type] || TYPE_COLORS.transform;
 
@@ -69,7 +70,13 @@ export function NodeInspector({ node, status, readOnly, onClose }: NodeInspector
         ) : (
           <>
             <button className="ins-btn">Open node config</button>
-            <button className="ins-btn ins-btn-ghost">Replay from here</button>
+            <button
+              className="ins-btn ins-btn-ghost"
+              onClick={onReplay}
+              disabled={!onReplay}
+            >
+              Replay from here
+            </button>
           </>
         )}
       </div>
