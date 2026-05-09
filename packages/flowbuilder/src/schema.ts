@@ -18,6 +18,9 @@ const BaseNodeSchema = z.object({
 export const InputNodeSchema = BaseNodeSchema.extend({
   type: z.literal("input"),
   value: z.unknown(),
+  required: z.boolean().optional(),
+  label: z.string().optional(),
+  description: z.string().optional(),
 });
 
 export const OutputNodeSchema = BaseNodeSchema.extend({

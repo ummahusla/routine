@@ -17,12 +17,15 @@ Use the MCP tools registered as \`flowbuilder_get_state\`, \`flowbuilder_set_sta
 - \`flowbuilder_set_state({ state })\` — write the FULL state. You must always pass the complete state; partial patches are not supported.
 
 ### Executing the graph
-- \`flowbuilder_execute_flow()\` — start a run of the saved graph. Returns \`{ runId, sessionId }\` immediately; the run executes asynchronously.
+- \`flowbuilder_execute_flow({ inputs? })\` — start a run of the saved graph. Returns \`{ runId, sessionId }\` immediately; the run executes asynchronously. \`inputs\` is an optional \`{ [nodeId]: value }\` map that populates input nodes. Any \`input\` node with \`required: true\` and no static \`value\` MUST have an entry in \`inputs\` or the run fails with \`MISSING_REQUIRED_INPUT\`. Inspect the graph via \`flowbuilder_get_state\` to discover which input node ids are required (look at \`required\`, \`label\`, and \`description\` on input nodes).
 - \`flowbuilder_get_run_result({ runId, waitMs? })\` — fetch the result of a previously started run. If \`waitMs\` is provided (max 60000), the call blocks server-side up to that many ms waiting for the run to finish; otherwise it returns the current on-disk state. Returns \`{ status, finalOutput?, outputs, error? }\`.
 
 **Recommended pattern:**
 \`\`\`
-const { runId } = flowbuilder_execute_flow();
+const { state } = flowbuilder_get_state();
+const required = state.nodes.filter(n => n.type === "input" && n.required);
+// build { [nodeId]: value } for each required input
+const { runId } = flowbuilder_execute_flow({ inputs: { /* nodeId: value, ... */ } });
 const result = flowbuilder_get_run_result({ runId, waitMs: 30000 });
 \`\`\`
 
@@ -36,7 +39,7 @@ You must always pass the **complete** state to \`flowbuilder_set_state\`. Partia
 {
   "schemaVersion": 1,
   "nodes": [
-    { "id": "n1", "type": "input",  "value": <any> },
+    { "id": "n1", "type": "input",  "value": <any>, "required": false, "label": "<optional human-readable name>", "description": "<optional hint>" },
     { "id": "n2", "type": "flow",   "flow": "<category>/<name>", "params": { ... } },
     { "id": "n3", "type": "llm",    "prompt": "<template>", "model": "claude-sonnet-4-6", "maxTokens": 4096, "temperature": 0.7 },
     { "id": "n4", "type": "branch", "cond": "<expression>" },

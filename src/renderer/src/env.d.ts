@@ -131,7 +131,7 @@ declare global {
         watch(sessionId: string, onEvent: (e: SessionEvent) => void): () => void;
       };
       run: {
-        execute(input: { sessionId: string }): Promise<RunIpcOk<{ runId: string }> | RunIpcErr>;
+        execute(input: { sessionId: string; inputs?: Record<string, unknown> }): Promise<RunIpcOk<{ runId: string }> | RunIpcErr>;
         cancel(input: { sessionId: string; runId: string }): Promise<RunIpcOk<{}> | RunIpcErr>;
         list(input: { sessionId: string }): Promise<RunIpcOk<{ runs: RunListEntry[] }> | RunIpcErr>;
         read(input: { sessionId: string; runId: string }): Promise<unknown>;

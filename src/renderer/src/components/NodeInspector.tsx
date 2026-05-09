@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ICONS } from "../data/icons";
 import { TYPE_COLORS } from "../data/typeColors";
-import type { FlowNode, NodeStatus } from "../types";
+import type { FlowNode, FlowbuilderNode, NodeStatus } from "../types";
 
 type NodeInspectorProps = {
   node: FlowNode | undefined;
@@ -12,6 +12,7 @@ type NodeInspectorProps = {
   sessionId?: string | null;
   activeRunId?: string | null;
   selectedRunId?: string | null;
+  fbNode?: FlowbuilderNode;
 };
 
 export function NodeInspector({
@@ -23,6 +24,7 @@ export function NodeInspector({
   sessionId,
   activeRunId,
   selectedRunId,
+  fbNode,
 }: NodeInspectorProps) {
   const [outputForNode, setOutputForNode] = useState<unknown>(null);
 
@@ -81,14 +83,53 @@ export function NodeInspector({
         <div className="ins-h2">Status</div>
         <div className={`ins-status ins-status-${status || "idle"}`}>{statusText}</div>
       </div>
-      <div className="ins-section">
-        <div className="ins-h2">Inputs</div>
-        <pre className="ins-code">{`{
+      {fbNode && fbNode.type === "input" ? (
+        <div className="ins-section">
+          <div className="ins-h2">Input</div>
+          <ul className="ins-schema">
+            <li>
+              <span>required</span>
+              <span>{fbNode.required ? "yes" : "no"}</span>
+            </li>
+            {fbNode.label && (
+              <li>
+                <span>label</span>
+                <span>{fbNode.label}</span>
+              </li>
+            )}
+            {fbNode.description && (
+              <li>
+                <span>description</span>
+                <span>{fbNode.description}</span>
+              </li>
+            )}
+            <li>
+              <span>value</span>
+              <span>
+                {fbNode.value === undefined || fbNode.value === null || fbNode.value === ""
+                  ? "(empty)"
+                  : typeof fbNode.value === "string"
+                    ? fbNode.value
+                    : JSON.stringify(fbNode.value)}
+              </span>
+            </li>
+          </ul>
+          {fbNode.required && (fbNode.value === undefined || fbNode.value === null || fbNode.value === "") && (
+            <div className="ins-note">
+              Required input — Play will prompt for a value at run time. Ask the agent to set <code>required</code>, <code>label</code>, or <code>description</code> via <code>flowbuilder_set_state</code>.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="ins-section">
+          <div className="ins-h2">Inputs</div>
+          <pre className="ins-code">{`{
   "max_results": 5,
   "language": ["typescript", "python"],
   "timeout_ms": 30000
 }`}</pre>
-      </div>
+        </div>
+      )}
       <div className="ins-section">
         <div className="ins-h2">Output schema</div>
         <ul className="ins-schema">

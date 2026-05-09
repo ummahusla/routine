@@ -96,7 +96,7 @@ const api = {
     },
   },
   run: {
-    execute: (input: { sessionId: string }) =>
+    execute: (input: { sessionId: string; inputs?: Record<string, unknown> }) =>
       ipcRenderer.invoke("run:execute", input) as Promise<
         { ok: true; runId: string } | { ok: false; code: string; error: string }
       >,

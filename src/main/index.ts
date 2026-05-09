@@ -92,11 +92,12 @@ const runRegistry = new RunRegistry({
     validateRefIntegrity(state);
     return state;
   },
-  makeRun: ({ sessionId, baseDir, state, cursorClient: cc }) =>
-    createRun({ sessionId, baseDir, state, cursorClient: cc }),
+  makeRun: ({ sessionId, baseDir, state, cursorClient: cc, inputs }) =>
+    createRun({ sessionId, baseDir, state, cursorClient: cc, ...(inputs ? { inputs } : {}) }),
 });
 
-const runStarter = (sessionId: string) => runRegistry.start(sessionId);
+const runStarter = (sessionId: string, inputs?: Record<string, unknown>) =>
+  runRegistry.start(sessionId, inputs);
 const runResultReader = (sessionId: string, runId: string) =>
   readRunResult(getBaseDir(), sessionId, runId);
 const waitForRunEnd = (runId: string, timeoutMs: number) =>

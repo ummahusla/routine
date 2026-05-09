@@ -17,7 +17,10 @@ export type FlowbuilderMcpHandle = {
   close(): Promise<void>;
 };
 
-export type RunStarter = (sessionId: string) => Promise<string>;
+export type RunStarter = (
+  sessionId: string,
+  inputs?: Record<string, unknown>,
+) => Promise<string>;
 export type RunResultReader = (sessionId: string, runId: string) => Promise<RunResult>;
 export type RunWaiter = (runId: string, timeoutMs: number) => Promise<void>;
 
@@ -90,13 +93,21 @@ function buildMcpServer(
     },
   );
 
+  const ExecuteFlowInput = z.object({
+    inputs: z.record(z.unknown()).optional(),
+  });
+
   mcp.tool(
     "flowbuilder_execute_flow",
-    "Execute the current flowbuilder graph. Returns a runId immediately; the run executes asynchronously. Call flowbuilder_get_run_result({ runId, waitMs }) to await the final outcome.",
-    {},
-    async () => {
+    "Execute the current flowbuilder graph. Returns a runId immediately; the run executes asynchronously. Call flowbuilder_get_run_result({ runId, waitMs }) to await the final outcome. Pass `inputs` ({ [nodeId]: value }) to populate input nodes flagged `required: true` (or to override any input node's static value); inspect the graph via flowbuilder_get_state to discover required input node ids.",
+    ExecuteFlowInput.shape,
+    async (raw) => {
+      const parsed = ExecuteFlowInput.safeParse(raw);
+      if (!parsed.success) {
+        return asTextResult({ ok: false, error: `validation: ${parsed.error.message}` });
+      }
       try {
-        const runId = await runStarter(session.sessionId);
+        const runId = await runStarter(session.sessionId, parsed.data.inputs);
         return asTextResult({ ok: true, runId, sessionId: session.sessionId });
       } catch (e) {
         return asTextResult({ ok: false, error: errorToToolMessage(e) });

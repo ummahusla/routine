@@ -58,6 +58,9 @@ export type FlowbuilderNode =
       id: string;
       type: "input";
       value: unknown;
+      required?: boolean;
+      label?: string;
+      description?: string;
     }
   | {
       id: string;
