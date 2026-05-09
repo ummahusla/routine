@@ -83,7 +83,9 @@ process.on("unhandledRejection", (reason) => {
   console.warn(`[main] swallowed unhandledRejection${code ? ` (${code})` : ""}: ${message}`);
 });
 
-const cursorClient = makeCursorClient();
+const cursorClient = makeCursorClient({
+  apiKey: process.env.CURSOR_API_KEY ?? "",
+});
 
 const runRegistry = new RunRegistry({
   baseDir: getBaseDir(),
@@ -95,7 +97,14 @@ const runRegistry = new RunRegistry({
     return state;
   },
   makeRun: ({ sessionId, baseDir, state, cursorClient: cc, inputs }) =>
-    createRun({ sessionId, baseDir, state, cursorClient: cc, ...(inputs ? { inputs } : {}) }),
+    createRun({
+      sessionId,
+      baseDir,
+      state,
+      cursorClient: cc,
+      cwd: join(baseDir, "sessions", sessionId, "workspace"),
+      ...(inputs ? { inputs } : {}),
+    }),
 });
 
 const runStarter = (sessionId: string, inputs?: Record<string, unknown>) =>

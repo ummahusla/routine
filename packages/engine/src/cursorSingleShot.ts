@@ -1,9 +1,19 @@
 import { Agent } from "@cursor/sdk";
 import type { CursorClient } from "./types.js";
 
-export function makeCursorClient(): CursorClient {
+export type MakeCursorClientOptions = {
+  /**
+   * Cursor API key. Falls back to process.env.CURSOR_API_KEY at call time
+   * if omitted. Required by the SDK to route to cloud agents — without it
+   * the SDK falls back to local mode and silently rejects with status=ERROR.
+   */
+  apiKey?: string;
+};
+
+export function makeCursorClient(clientOpts: MakeCursorClientOptions = {}): CursorClient {
   return {
-    singleShot({ prompt, system, model, maxTokens: _maxTokens, temperature: _temperature, signal }) {
+    singleShot({ prompt, system, model, maxTokens: _maxTokens, temperature: _temperature, signal, cwd }) {
+      const apiKey = clientOpts.apiKey ?? process.env.CURSOR_API_KEY ?? "";
       const queue: string[] = [];
       let resolveDone!: (v: { text: string }) => void;
       let rejectDone!: (e: unknown) => void;
@@ -32,9 +42,27 @@ export function makeCursorClient(): CursorClient {
 
       (async () => {
         try {
+          // Mirror the main session's Agent.create call (see
+          // packages/core/src/session/session.ts): the SDK requires apiKey
+          // for cloud routing and a workspace cwd to initialize. Calling
+          // create with only `model` lands in a degenerate state where the
+          // run dies with status=ERROR + no message in ~400ms.
+          if (!apiKey) {
+            throw new Error(
+              "CURSOR_API_KEY is not set. Add it to .env / .env.local and restart the app — the Cursor SDK cannot route LLM nodes without it.",
+            );
+          }
           const agent = await Agent.create({
+            apiKey,
             model: { id: model },
-            // single-shot: no plugins, no extra tools
+            ...(cwd
+              ? {
+                  local: {
+                    cwd,
+                    settingSources: ["project", "user"] as Array<"project" | "user">,
+                  },
+                }
+              : {}),
           });
           // Build the full prompt, prepending the system prompt if provided.
           // The Cursor SDK send() takes a plain string; system context is

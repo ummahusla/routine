@@ -109,6 +109,7 @@ export function createRun(opts: CreateRunOptions): Run {
             cursorClient: opts.cursorClient,
             onChunk: (chunk: string) => push({ type: "node_text", runId, nodeId: n.id, chunk }),
             signal: internalAbort.signal,
+            ...(opts.cwd ? { cwd: opts.cwd } : {}),
           });
           break;
         default:

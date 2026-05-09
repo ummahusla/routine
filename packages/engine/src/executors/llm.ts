@@ -9,6 +9,7 @@ export type ExecuteLlmOpts = {
   cursorClient: CursorClient;
   onChunk: (chunk: string) => void;
   signal?: AbortSignal;
+  cwd?: string;
 };
 
 const FENCED_JSON = /```json\s*\n([\s\S]*?)\n```/;
@@ -24,6 +25,7 @@ export async function executeLlm(opts: ExecuteLlmOpts): Promise<Envelope> {
     maxTokens: node.maxTokens,
     temperature: node.temperature,
     ...(opts.signal ? { signal: opts.signal } : {}),
+    ...(opts.cwd ? { cwd: opts.cwd } : {}),
   });
 
   let collected = "";
