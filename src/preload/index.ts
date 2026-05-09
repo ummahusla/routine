@@ -92,6 +92,46 @@ const api = {
       };
     },
   },
+  run: {
+    execute: (input: { sessionId: string }) =>
+      ipcRenderer.invoke("run:execute", input) as Promise<
+        { ok: true; runId: string } | { ok: false; code: string; error: string }
+      >,
+    cancel: (input: { sessionId: string; runId: string }) =>
+      ipcRenderer.invoke("run:cancel", input) as Promise<
+        { ok: true } | { ok: false; code: string; error: string }
+      >,
+    list: (input: { sessionId: string }) =>
+      ipcRenderer.invoke("run:list", input) as Promise<
+        | {
+            ok: true;
+            runs: Array<{
+              runId: string;
+              sessionId: string;
+              startedAt: string;
+              endedAt?: string;
+              status: string;
+              error?: string;
+            }>;
+          }
+        | { ok: false; code: string; error: string }
+      >,
+    read: (input: { sessionId: string; runId: string }) =>
+      ipcRenderer.invoke("run:read", input) as Promise<unknown>,
+    watch: (input: { sessionId: string; runId: string }) =>
+      ipcRenderer.invoke("run:watch", input) as Promise<
+        { ok: true; subscriptionId: string } | { ok: false; code: string; error: string }
+      >,
+    unwatch: (input: { subscriptionId: string }) =>
+      ipcRenderer.invoke("run:unwatch", input) as Promise<
+        { ok: true } | { ok: false; code: string; error: string }
+      >,
+    onEvent: (cb: (msg: { runId: string; event: unknown }) => void) => {
+      const listener = (_e: unknown, msg: { runId: string; event: unknown }) => cb(msg);
+      ipcRenderer.on("run:event", listener);
+      return () => ipcRenderer.removeListener("run:event", listener);
+    },
+  },
 };
 
 if (process.contextIsolated) {
