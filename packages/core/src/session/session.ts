@@ -296,7 +296,12 @@ export class Session {
             durationMs: Date.now() - startedAt,
           },
         );
-        await this.updateMeta({ turnStatus: "failed_to_start" });
+        const persistOnFail = opts.model && opts.model !== this.model ? opts.model : undefined;
+        await this.updateMeta({
+          turnStatus: "failed_to_start",
+          ...(persistOnFail ? { model: persistOnFail } : {}),
+        });
+        if (persistOnFail) this.model = persistOnFail;
         return { turnId, status: "failed_to_start", finalText: "", error: startError };
       }
 
@@ -483,14 +488,13 @@ export class Session {
         ...(usage ? { usage } : {}),
       },
     );
+    const persistModel = opts.model && opts.model !== this.model ? opts.model : undefined;
     await this.updateMeta({
       turnStatus: status,
       ...(usage ? { usage } : {}),
-      ...(opts.model && opts.model !== this.model ? { model: opts.model } : {}),
+      ...(persistModel ? { model: persistModel } : {}),
     });
-    if (opts.model && opts.model !== this.model) {
-      this.model = opts.model;
-    }
+    if (persistModel) this.model = persistModel;
 
     if (midStreamError && status === "failed") {
       // Mid-stream HarnessError captured above. Persist + emit are done;

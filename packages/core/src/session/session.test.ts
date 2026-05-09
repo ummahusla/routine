@@ -321,6 +321,24 @@ describe("Session.send", () => {
     expect(meta.model).toBe("claude-4.7-opus");
   });
 
+  it("persists opts.model to meta even when Agent.create fails", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "composer-2" });
+    installFakeSdk({ createBehavior: [{ throws: new Error("auth bad") }] });
+
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({
+      baseDir: dir,
+      sessionId: "S1",
+      apiKey: "crsr_test",
+      retry: { attempts: 1 },
+    });
+    const result = await session.send("hi", { model: "claude-4.7-opus" });
+    expect(result.status).toBe("failed_to_start");
+
+    const meta = JSON.parse(readFileSync(join(dir, "sessions", "S1", "chat.json"), "utf8"));
+    expect(meta.model).toBe("claude-4.7-opus");
+  });
+
   it("cancel mid-turn produces status=cancelled", async () => {
     initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
     let resolveStream!: () => void;
