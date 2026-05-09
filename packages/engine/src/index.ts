@@ -10,5 +10,12 @@ export type {
 } from "./types.js";
 export { makeCursorClient } from "./cursorSingleShot.js";
 export { createRun } from "./engine.js";
-export { readRunResult, listRuns, type RunResult } from "./runStore.js";
+export {
+  readRunResult,
+  readEventsFrom,
+  listRuns,
+  type RunResult,
+  type RunEventTail,
+} from "./runStore.js";
+export { summarizeNodes, type NodeSummary } from "./runSummary.js";
 export { EngineError, type EngineErrorCode } from "./errors.js";

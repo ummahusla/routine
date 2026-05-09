@@ -4,6 +4,7 @@ import {
   type RunStarter,
   type RunResultReader,
   type RunWaiter,
+  type RunEventTailReader,
 } from "@flow-build/flowbuilder";
 import type { Plugin } from "./types.js";
 
@@ -14,6 +15,7 @@ export type DefaultPluginsOptions = {
   runStarter?: RunStarter;
   runResultReader?: RunResultReader;
   waitForRunEnd?: RunWaiter;
+  tailReader?: RunEventTailReader;
 };
 
 export function defaultPlugins(opts: DefaultPluginsOptions): Plugin[] {
@@ -25,6 +27,7 @@ export function defaultPlugins(opts: DefaultPluginsOptions): Plugin[] {
       ...(opts.runStarter ? { runStarter: opts.runStarter } : {}),
       ...(opts.runResultReader ? { runResultReader: opts.runResultReader } : {}),
       ...(opts.waitForRunEnd ? { waitForRunEnd: opts.waitForRunEnd } : {}),
+      ...(opts.tailReader ? { tailReader: opts.tailReader } : {}),
     }),
   ];
 }

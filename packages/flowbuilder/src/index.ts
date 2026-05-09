@@ -16,7 +16,12 @@ export {
 } from "./schema.js";
 export { createFlowbuilderPlugin } from "./plugin.js";
 export type { FlowbuilderPluginOptions } from "./plugin.js";
-export type { RunStarter, RunResultReader, RunWaiter } from "./mcp-server.js";
+export type {
+  RunStarter,
+  RunResultReader,
+  RunWaiter,
+  RunEventTailReader,
+} from "./mcp-server.js";
 export { FLOWBUILDER_RULES_PATH } from "./rules.js";
 export {
   FlowbuilderError,
