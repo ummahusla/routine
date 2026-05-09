@@ -8,10 +8,15 @@ export function ToolCallChip({ call }: Props): JSX.Element {
   const status = call.ok === undefined ? "running" : call.ok ? "ok" : "error";
   return (
     <div className={`tool-chip tool-chip-${status}`}>
-      <button className="tool-chip-head" onClick={() => setOpen((v) => !v)}>
+      <button
+        type="button"
+        className="tool-chip-head"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className="tool-chip-toggle">{open ? "▾" : "▸"}</span>
         <span className="tool-chip-name">{call.name}</span>
         <span className="tool-chip-status">{status}</span>
-        <span className="tool-chip-toggle">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
         <div className="tool-chip-body">

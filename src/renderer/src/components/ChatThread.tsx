@@ -2,15 +2,16 @@ import { useEffect, useRef, type MouseEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PersistedTurn } from "@flow-build/core";
-import { ToolCallChip } from "./ToolCallChip";
+import { ToolCallsSection } from "./ToolCallsSection";
 
 type ChatThreadProps = {
   turns: PersistedTurn[];
   height: number;
+  loading?: boolean;
   onResize: (height: number) => void;
 };
 
-export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
+export function ChatThread({ turns, height, loading = false, onResize }: ChatThreadProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const lastTurn = turns[turns.length - 1];
   const lastTextLen = lastTurn?.assistant.textBlocks.length ?? 0;
@@ -47,6 +48,12 @@ export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
       </div>
       <div className="ct" ref={scrollRef} style={{ height, maxHeight: "none", flex: "0 0 auto" }}>
         <div className="ct-list">
+          {loading && turns.length === 0 && (
+            <div className="ct-loading" role="status" aria-live="polite">
+              <span className="ct-spinner" aria-hidden="true" />
+              <span>Loading session details...</span>
+            </div>
+          )}
           {turns.map((turn) => (
             <div key={turn.turnId} className="msg-pair">
               <div className="msg msg-user">
@@ -55,9 +62,7 @@ export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
               <div className="msg msg-ai">
                 <div className="msg-body">
                   <div className="msg-h">FlowBuild</div>
-                  {turn.assistant.toolCalls.map((c) => (
-                    <ToolCallChip key={c.callId} call={c} />
-                  ))}
+                  <ToolCallsSection calls={turn.assistant.toolCalls} />
                   {turn.assistant.textBlocks.length > 0 && (
                     <div className="msg-text">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -65,6 +70,15 @@ export function ChatThread({ turns, height, onResize }: ChatThreadProps) {
                       </ReactMarkdown>
                     </div>
                   )}
+                  {turn.status === "running" &&
+                    turn.assistant.textBlocks.length === 0 &&
+                    turn.assistant.toolCalls.length === 0 && (
+                      <div className="msg-typing" aria-label="Waiting for response">
+                        <span className="msg-typing-dot" />
+                        <span className="msg-typing-dot" />
+                        <span className="msg-typing-dot" />
+                      </div>
+                    )}
                   {turn.status !== "completed" && turn.status !== "running" && (
                     <div className="msg-end">
                       [turn {turn.status}]
