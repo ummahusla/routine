@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type { Node } from "@flow-build/flowbuilder";
 import type { Envelope } from "../types.js";
 import { substitute } from "../template.js";
@@ -7,23 +10,50 @@ export type ExecuteFlowOpts = {
   node: Extract<Node, { type: "flow" }>;
   input: Envelope;
   roteCmd: string;
-  roteArgsPrefix?: string[];     // for testing — prepend args before "flow run ..."
+  roteArgsPrefix?: string[];     // for testing — prepend args before "deno run ..."
+  resolveFlowPath?: (flowRef: string) => string;
   signal?: AbortSignal;
 };
 
-export async function executeFlow(opts: ExecuteFlowOpts): Promise<Envelope> {
-  const argv: string[] = [
-    ...(opts.roteArgsPrefix ?? []),
-    "flow",
-    "run",
-    opts.node.flow,
+export function defaultResolveFlowPath(flowRef: string): string {
+  const home = homedir() || process.env.HOME || process.env.USERPROFILE || "~";
+  const parts = flowRef.split("/", 2);
+  const category = parts[0] ?? "";
+  const name = parts[1] ?? "";
+  const candidates = [
+    join(home, ".rote", "flows", category, name, "main.ts"),
+    join(home, ".rote", "flows", name, "main.ts"),
   ];
-  for (const [k, v] of Object.entries(opts.node.params)) {
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  throw new Error(
+    `flow not found: ${flowRef} (searched: ${candidates.join(", ")})`,
+  );
+}
+
+export async function executeFlow(opts: ExecuteFlowOpts): Promise<Envelope> {
+  const resolve = opts.resolveFlowPath ?? defaultResolveFlowPath;
+  const flowPath = resolve(opts.node.flow);
+
+  // Pass params as positionals in node.params insertion order — matches
+  // rote flow CLI convention (positional args, e.g. `[limit] [offset] ...`).
+  const positionals: string[] = [];
+  for (const v of Object.values(opts.node.params)) {
     const resolved = typeof v === "string" ? substitute(v, opts.input) : JSON.stringify(v);
-    argv.push(`--${k}=${resolved}`);
+    positionals.push(resolved);
   }
 
-  return new Promise<Envelope>((resolve, reject) => {
+  const argv: string[] = [
+    ...(opts.roteArgsPrefix ?? []),
+    "deno",
+    "run",
+    "--allow-all",
+    flowPath,
+    ...positionals,
+  ];
+
+  return new Promise<Envelope>((resolveP, reject) => {
     const child = spawn(opts.roteCmd, argv, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
@@ -46,7 +76,7 @@ export async function executeFlow(opts: ExecuteFlowOpts): Promise<Envelope> {
       } catch {
         // best-effort — leave data undefined
       }
-      resolve(env);
+      resolveP(env);
     });
   });
 }
