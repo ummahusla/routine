@@ -49,7 +49,6 @@ const api = {
       unwrap(await ipcRenderer.invoke("session:delete", { sessionId }));
     },
     watch(sessionId: string, onEvent: (e: SessionEvent) => void): () => void {
-      let subscriptionId: string | undefined;
       const listener = (
         _e: Electron.IpcRendererEvent,
         payload: { sessionId: string; event: SessionEvent },
@@ -63,22 +62,25 @@ const api = {
       ) => {
         if (payload.sessionId !== sessionId) return;
         // best effort — surface a deletion event upstream via a synthetic wrapper
-        onEvent({ type: "error", turnId: "", message: "session deleted", code: "DELETED" } as SessionEvent);
+        onEvent({ type: "error", turnId: "", message: "session deleted", code: "DELETED" });
       };
       ipcRenderer.on("session:event", listener);
       ipcRenderer.on("session:deleted", deletedListener);
-      ipcRenderer
+      const watchPromise: Promise<string | undefined> = ipcRenderer
         .invoke("session:watch", { sessionId })
-        .then((r) => {
-          subscriptionId = unwrap<{ subscriptionId: string }>(r).subscriptionId;
-        })
-        .catch(() => {});
+        .then((r) => unwrap<{ subscriptionId: string }>(r).subscriptionId)
+        .catch((err) => {
+          console.error("session:watch failed", err);
+          return undefined;
+        });
       return () => {
         ipcRenderer.removeListener("session:event", listener);
         ipcRenderer.removeListener("session:deleted", deletedListener);
-        if (subscriptionId) {
-          ipcRenderer.invoke("session:unwatch", { subscriptionId }).catch(() => {});
-        }
+        void watchPromise.then((subscriptionId) => {
+          if (subscriptionId) {
+            ipcRenderer.invoke("session:unwatch", { subscriptionId }).catch(() => {});
+          }
+        });
       };
     },
   },
