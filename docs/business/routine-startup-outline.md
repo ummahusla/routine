@@ -48,7 +48,7 @@ All three are bad outcomes. The market is wide open for a tool that gives them c
 
 2. **Agent walks the user through it.** The agent asks clarifying questions, requests credentials, probes APIs via rote adapters, and shows each step as a node on the canvas as it gets built. The user sees the workflow take shape live.
 
-3. **Crystallize to a deterministic flow.** Once the agent successfully completes the task end-to-end, rote compiles the trace into a parameterized shell script. No LLM in the execution path. Runs in seconds, costs near-zero.
+3. **Crystallize to a deterministic flow.** Once the agent successfully completes the task end-to-end, rote compiles the trace into a typescript script. No LLM in the execution path. Runs in seconds, costs near-zero.
 
 4. **Mix in LLM blocks where judgment is required.** Summarization, sentiment analysis, classification, copy generation — these become explicit LLM nodes in the flow. The user sees exactly which steps cost tokens and which don't. Best of both worlds: rigid where it should be rigid, flexible where it must be.
 
@@ -165,11 +165,11 @@ Combined visible ARR across the top three: ~$400M+ and accelerating. Even the #3
 
 | Tier | Who | Price | Includes |
 |---|---|---|---|
-| **Routine OSS** | Indies, evaluators, devs | Free | Desktop app. Local execution. Local flow library. BYO API keys. Self-hosted runner via Docker. Community support. |
-| **Routine Cloud Starter** | Solo consultants, micro-agencies | ~$29 / user / mo | Cloud runner with scheduled + webhook triggers. 1 user. 5K flow runs / mo. Hosted credentials vault. Email support. |
+| **Routine OSS** | Indies, evaluators, devs | Free | Desktop app. Local execution. Local flow library. Community support. |
+| **Routine Cloud Starter** | Solo consultants, micro-agencies | ~$19 / user / mo | Cloud runner with scheduled + webhook triggers. 1 user. 5K flow runs / mo. Hosted credentials vault. |
 | **Routine Team** | Agencies 5–50 employees | ~$99 / user / mo (5-user min) | Everything in Starter + team flow registry, role-based access, audit logs, 50K runs / user / mo, shared client workspaces. |
-| **Routine Business** | Agencies 50–100, consultancies | ~$249 / user / mo | Team + SSO, advanced RBAC, custom retention, priority support, 250K runs / user / mo, white-label client portals. |
-| **Routine Enterprise** | 100+ employees, regulated industries | Custom (~$50–200K / yr) | Self-hosted cloud runner, SOC 2 Type II, SLA, dedicated CSM, unlimited runs, custom adapter development, audit / compliance package. |
+| **Routine Business** | Agencies 50–100, consultancies | ~$249 / user / mo | Team + SSO, priority support, 250K runs / user / mo, white-label client portals. |
+| **Routine Enterprise** | 100+ employees, regulated industries | Custom (~$50–200K / yr) | Self-hosted cloud runner, unlimited runs. |
 
 ### Why these tiers fit the ICP
 
