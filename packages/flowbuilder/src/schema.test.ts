@@ -118,7 +118,7 @@ describe("LlmNodeSchema", () => {
       type: "llm",
       prompt: "Translate {{input}}",
     });
-    expect(parsed.model).toBe("claude-sonnet-4-6");
+    expect(parsed.model).toBe("default");
     expect(parsed.maxTokens).toBe(4096);
     expect(parsed.temperature).toBe(0.7);
   });

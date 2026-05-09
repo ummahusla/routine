@@ -14,12 +14,17 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "flow-build-smoke-"));
   process.env.CURSOR_API_KEY = "crsr_test";
+  // Disable safe-shell wiring for smoke tests — the rote integration path
+  // doesn't need (and shouldn't depend on) the harness spinning up a real
+  // HTTP listener and writing .cursor/hooks.json into the test cwd.
+  process.env.FLOW_BUILD_SAFE_SHELL = "0";
   vi.resetModules();
 });
 
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
   delete process.env.CURSOR_API_KEY;
+  delete process.env.FLOW_BUILD_SAFE_SHELL;
   vi.doUnmock("@cursor/sdk");
 });
 

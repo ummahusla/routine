@@ -4,7 +4,9 @@ export type EngineErrorCode =
   | "GRAPH_INVALID"
   | "EXEC_FAILED"
   | "CANCELLED"
-  | "MISSING_REQUIRED_INPUT";
+  | "MISSING_REQUIRED_INPUT"
+  | "LLM_EMPTY_OUTPUT"
+  | "LLM_STREAM_ERROR";
 
 export class EngineError extends Error {
   readonly code: EngineErrorCode;

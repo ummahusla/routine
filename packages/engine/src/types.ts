@@ -67,6 +67,7 @@ export type CursorClient = {
     maxTokens: number;
     temperature: number;
     signal?: AbortSignal;
+    cwd?: string;
   }): {
     chunks: AsyncIterable<string>;
     done: Promise<{ text: string }>;
@@ -81,4 +82,5 @@ export type CreateRunOptions = {
   roteCmd?: string;
   signal?: AbortSignal;
   inputs?: Record<string, unknown>;
+  cwd?: string;
 };

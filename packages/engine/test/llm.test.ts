@@ -24,7 +24,7 @@ describe("executeLlm", () => {
       node: {
         id: "l1", type: "llm",
         prompt: "Say hi to {{input}}",
-        model: "claude-sonnet-4-6",
+        model: "claude-4.6-sonnet",
         maxTokens: 100,
         temperature: 0.5,
       },
@@ -34,13 +34,13 @@ describe("executeLlm", () => {
     });
     expect(env.text).toBe("hello");
     expect(calls[0].prompt).toBe("Say hi to world");
-    expect(calls[0].model).toBe("claude-sonnet-4-6");
+    expect(calls[0].model).toBe("claude-4.6-sonnet");
     expect(calls[0].maxTokens).toBe(100);
     expect(calls[0].temperature).toBe(0.5);
   });
 
   it("forwards system prompt when set", async () => {
-    const { client, calls } = mockClient([""]);
+    const { client, calls } = mockClient(["ok"]);
     await executeLlm({
       node: {
         id: "l1", type: "llm",
@@ -52,6 +52,21 @@ describe("executeLlm", () => {
       onChunk: () => {},
     });
     expect(calls[0].system).toBe("be terse");
+  });
+
+  it("throws LLM_EMPTY_OUTPUT when stream produces no text", async () => {
+    const { client } = mockClient([]);
+    await expect(
+      executeLlm({
+        node: {
+          id: "risk", type: "llm",
+          prompt: "x", model: "claude-sonnet-4-6", maxTokens: 1, temperature: 0,
+        },
+        input: { text: "" },
+        cursorClient: client,
+        onChunk: () => {},
+      }),
+    ).rejects.toMatchObject({ name: "EngineError", code: "LLM_EMPTY_OUTPUT" });
   });
 
   it("emits each chunk via onChunk", async () => {

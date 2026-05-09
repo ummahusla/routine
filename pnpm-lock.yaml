@@ -130,6 +130,9 @@ importers:
       '@flow-build/rote':
         specifier: workspace:*
         version: link:../rote
+      '@flow-build/safe-shell-mcp':
+        specifier: workspace:*
+        version: link:../safe-shell-mcp
 
   packages/engine:
     dependencies:
@@ -170,6 +173,15 @@ importers:
       '@flow-build/core':
         specifier: workspace:*
         version: link:../core
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.4
+        version: 1.29.0(zod@3.25.76)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+
+  packages/safe-shell-mcp:
+    dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.4
         version: 1.29.0(zod@3.25.76)
