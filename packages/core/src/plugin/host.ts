@@ -88,6 +88,38 @@ export class PluginHost {
     return parts.filter((p): p is string => typeof p === "string").join("\n\n");
   }
 
+  async runProvideMcpServers(
+    ctx: RuntimeContext,
+  ): Promise<Record<string, import("../types.js").McpServerConfig>> {
+    const results = await Promise.all(
+      this.plugins.map(async (p) => {
+        if (!p.provideMcpServers) return null;
+        try {
+          return { name: p.name, config: await p.provideMcpServers(ctx) };
+        } catch (cause) {
+          throw new PluginHostError(
+            `plugin "${p.name}" provideMcpServers failed`,
+            { cause },
+          );
+        }
+      }),
+    );
+    const merged: Record<string, import("../types.js").McpServerConfig> = {};
+    for (const r of results) {
+      if (!r) continue;
+      for (const [name, cfg] of Object.entries(r.config)) {
+        if (name in merged) {
+          ctx.logger.warn("mcp server name collision; later contribution wins", {
+            name,
+            from: r.name,
+          });
+        }
+        merged[name] = cfg;
+      }
+    }
+    return merged;
+  }
+
   intercept(e: HarnessEvent, ctx: RuntimeContext): HarnessEvent[] {
     let stream: HarnessEvent[] = [e];
     for (const p of this.plugins) {
