@@ -21,15 +21,14 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       reject(new AbortedError());
       return;
     }
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const onAbort = () => {
-      if (timer) clearTimeout(timer);
-      reject(new AbortedError());
-    };
-    timer = setTimeout(() => {
+    const timer = setTimeout(() => {
       signal?.removeEventListener("abort", onAbort);
       resolve();
     }, ms);
+    function onAbort(): void {
+      clearTimeout(timer);
+      reject(new AbortedError());
+    }
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
