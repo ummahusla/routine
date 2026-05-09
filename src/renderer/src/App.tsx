@@ -586,7 +586,14 @@ export function App() {
       />
 
       <main className="main">
-        <TopBar flow={flow} onHome={handleNew} onTidy={handleTidy} />
+        <TopBar
+          flow={flow}
+          onHome={handleNew}
+          onTidy={handleTidy}
+          onPlay={() => { /* wired in next task */ }}
+          canRun={false}
+          running={false}
+        />
 
         {!selectedSessionId && !flow && !building && <EmptyState onSubmit={(text) => void handleSubmit(text)} />}
 
