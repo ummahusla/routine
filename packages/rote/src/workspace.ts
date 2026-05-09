@@ -20,6 +20,7 @@ export function inferActiveWorkspace(opts: {
   }
 
   let walk = cwdAbs;
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     const marker = resolve(walk, ".rote", "state.json");
     if (existsSync(marker)) {
