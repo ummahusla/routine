@@ -34,3 +34,20 @@ export function substitute(template: string, env: Envelope): string {
     return stringify(valueAtPath(env, segments));
   });
 }
+
+// Walks arrays and plain objects, substituting {{input...}} inside any string
+// leaf. Anything that isn't a string/array/plain-object is returned unchanged.
+// Without this, a param value like ["{{input}}"] would be JSON.stringify'd
+// with the {{input}} token still literal.
+export function deepSubstitute(value: unknown, env: Envelope): unknown {
+  if (typeof value === "string") return substitute(value, env);
+  if (Array.isArray(value)) return value.map((v) => deepSubstitute(v, env));
+  if (value !== null && typeof value === "object" && (value as object).constructor === Object) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = deepSubstitute(v, env);
+    }
+    return out;
+  }
+  return value;
+}
