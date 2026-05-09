@@ -99,6 +99,18 @@ type FlowbuilderReadSessionResult =
       error: string;
     };
 
+type RunIpcOk<T> = { ok: true } & T;
+type RunIpcErr = { ok: false; code: string; error: string };
+
+type RunListEntry = {
+  runId: string;
+  sessionId: string;
+  startedAt: string;
+  endedAt?: string;
+  status: string;
+  error?: string;
+};
+
 declare global {
   interface Window {
     electron: ElectronAPI;
@@ -116,6 +128,17 @@ declare global {
         rename(sessionId: string, title: string): Promise<void>;
         delete(sessionId: string): Promise<void>;
         watch(sessionId: string, onEvent: (e: SessionEvent) => void): () => void;
+      };
+      run: {
+        execute(input: { sessionId: string }): Promise<RunIpcOk<{ runId: string }> | RunIpcErr>;
+        cancel(input: { sessionId: string; runId: string }): Promise<RunIpcOk<{}> | RunIpcErr>;
+        list(input: { sessionId: string }): Promise<RunIpcOk<{ runs: RunListEntry[] }> | RunIpcErr>;
+        read(input: { sessionId: string; runId: string }): Promise<unknown>;
+        watch(
+          input: { sessionId: string; runId: string },
+        ): Promise<RunIpcOk<{ subscriptionId: string }> | RunIpcErr>;
+        unwatch(input: { subscriptionId: string }): Promise<RunIpcOk<{}> | RunIpcErr>;
+        onEvent(cb: (msg: { runId: string; event: unknown }) => void): () => void;
       };
     };
   }

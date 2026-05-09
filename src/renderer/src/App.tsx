@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { NODE_W, NODE_H, GAP_X } from "./data/constants";
 import { topoLayers, nodePos } from "./utils/flow";
 import { flowbuilderStateToFlow } from "./utils/flowbuilder";
@@ -24,6 +24,17 @@ import type {
 // Static design constants (replaces the previous tweakable values)
 const ACCENT = "#5fc88f";
 const DENSITY = "regular" as const;
+
+// Status reported by the real engine via window.api.run events. Wider than
+// the legacy simulated RunState (pending|running|done) — adds error/skipped.
+type NodeRunStatus = "pending" | "running" | "done" | "error" | "skipped";
+
+type RunEventLike =
+  | { type: "run_start" }
+  | { type: "node_start"; nodeId: string }
+  | { type: "node_text"; nodeId: string; chunk: string }
+  | { type: "node_end"; nodeId: string; status: string; error?: string }
+  | { type: "run_end"; status: string };
 
 const SMART_ADD_ITEMS = {
   prompt: {
@@ -95,6 +106,13 @@ export function App() {
   const [building, setBuilding] = useState(false);
   const [running, setRunning] = useState(false);
   const [runState, setRunState] = useState<RunState>({});
+  // Real-engine run wiring (Task 25). The legacy simulated runner above
+  // animates the canvas after a build; the states below track an actual
+  // engine run driven by the Play button via window.api.run.*.
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [, setRunStatuses] = useState<Map<string, NodeRunStatus>>(new Map());
+  const [nodeStreams, setNodeStreams] = useState<Map<string, string>>(new Map());
+  const [nodeErrors, setNodeErrors] = useState<Map<string, string>>(new Map());
   const [refineVal, setRefineVal] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatHeight, setChatHeight] = useState(180);
@@ -402,6 +420,79 @@ export function App() {
     setRunning(false);
   }
 
+  // Enable Play only when the flow is linear-runnable: needs an input
+  // (rendered as "trigger") and an output, with no branch/merge nodes
+  // (engine validator currently rejects those).
+  const canRun = useMemo(() => {
+    if (!flow || !selectedSessionId) return false;
+    const types = new Set(flow.nodes.map((n) => n.type));
+    if (types.has("branch")) return false;
+    return types.has("trigger") && types.has("output");
+  }, [flow, selectedSessionId]);
+
+  // Drive a real engine run via the preload IPC bridge. This replaces the
+  // simulated handleRun for Play-button-initiated executions; the simulated
+  // runner is still used by the chat-driven /run command and the build-time
+  // animation, since those don't necessarily target the engine yet.
+  async function handlePlay(): Promise<void> {
+    if (!selectedSessionId) return;
+    setRunStatuses(new Map());
+    setNodeStreams(new Map());
+    setNodeErrors(new Map());
+    setRunState((current) => {
+      const cleared: RunState = { ...current };
+      Object.keys(cleared).forEach((id) => {
+        cleared[id] = "pending";
+      });
+      return cleared;
+    });
+
+    const r = await window.api.run.execute({ sessionId: selectedSessionId });
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    setActiveRunId(r.runId);
+
+    const watch = await window.api.run.watch({ sessionId: selectedSessionId, runId: r.runId });
+    if (!watch.ok) {
+      setError(watch.error);
+      setActiveRunId(null);
+      return;
+    }
+    const subscriptionId = watch.subscriptionId;
+
+    const off = window.api.run.onEvent(({ runId, event }) => {
+      if (runId !== r.runId) return;
+      const ev = event as RunEventLike;
+      if (ev.type === "node_start") {
+        setRunStatuses((m) => new Map(m).set(ev.nodeId, "running"));
+        setRunState((state) => ({ ...state, [ev.nodeId]: "running" }));
+      } else if (ev.type === "node_text") {
+        setNodeStreams((m) => {
+          const next = new Map(m);
+          next.set(ev.nodeId, (next.get(ev.nodeId) ?? "") + ev.chunk);
+          return next;
+        });
+      } else if (ev.type === "node_end") {
+        const status = ev.status as NodeRunStatus;
+        setRunStatuses((m) => new Map(m).set(ev.nodeId, status));
+        // Map to legacy RunState: only pending|running|done are valid there.
+        setRunState((state) => ({
+          ...state,
+          [ev.nodeId]: status === "done" ? "done" : status === "running" ? "running" : "pending",
+        }));
+        if (status === "error" && ev.error) {
+          setNodeErrors((m) => new Map(m).set(ev.nodeId, ev.error!));
+        }
+      } else if (ev.type === "run_end") {
+        off();
+        void window.api.run.unwatch({ subscriptionId });
+        setActiveRunId(null);
+      }
+    });
+  }
+
   function handleReset(): void {
     setRunState({});
   }
@@ -590,9 +681,9 @@ export function App() {
           flow={flow}
           onHome={handleNew}
           onTidy={handleTidy}
-          onPlay={() => { /* wired in next task */ }}
-          canRun={false}
-          running={false}
+          onPlay={() => void handlePlay()}
+          canRun={canRun}
+          running={activeRunId !== null}
         />
 
         {!selectedSessionId && !flow && !building && <EmptyState onSubmit={(text) => void handleSubmit(text)} />}
@@ -654,6 +745,8 @@ export function App() {
                     onDeleteEdge={readOnlySession ? undefined : handleDeleteEdge}
                     onAddEdge={readOnlySession ? undefined : handleAddEdge}
                     onPromptChange={readOnlySession ? undefined : handlePromptChange}
+                    nodeStreams={nodeStreams}
+                    nodeErrors={nodeErrors}
                   />
                 </div>
               )}
