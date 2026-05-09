@@ -33,6 +33,15 @@ type FlowbuilderNode =
   | {
       id: string;
       type: "merge";
+    }
+  | {
+      id: string;
+      type: "llm";
+      prompt: string;
+      model?: string;
+      maxTokens?: number;
+      temperature?: number;
+      systemPrompt?: string;
     };
 
 type FlowbuilderEdge = {

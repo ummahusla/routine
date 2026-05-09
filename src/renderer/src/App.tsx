@@ -37,7 +37,7 @@ const SMART_ADD_ITEMS = {
   email: { type: "output", icon: "mail", label: "Send email", sub: "smtp" },
   webhook: { type: "trigger", icon: "webhook", label: "Webhook", sub: "POST /event" },
   http: { type: "http", icon: "http", label: "HTTP request", sub: "GET /..." },
-  llm: { type: "llm", icon: "llm", label: "LLM call", sub: "claude-sonnet" },
+  llm: { type: "llm", icon: "llm", label: "LLM call", sub: "claude-sonnet", prompt: "Summarize {{input}}" },
   filter: { type: "filter", icon: "filter", label: "Filter", sub: "where ..." },
   approval: { type: "human", icon: "user", label: "Human approval", sub: "slack approval" },
   database: { type: "storage", icon: "db", label: "Database", sub: "supabase · query" },
