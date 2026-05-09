@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(mkdir -p src/main src/preload src/renderer/src build resources .vscode)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(npm run *)"
     ]
   }
 }
