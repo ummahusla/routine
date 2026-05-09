@@ -45,3 +45,5 @@ export {
 } from "./session/errors.js";
 export { defaultPlugins } from "./default-plugins.js";
 export type { DefaultPluginsOptions } from "./default-plugins.js";
+export { FALLBACK_MODELS, listModels } from "./models.js";
+export type { ModelInfo, ListModelsOptions } from "./models.js";

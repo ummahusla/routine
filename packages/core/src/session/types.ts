@@ -60,6 +60,11 @@ export type PersistedTurn = {
 export type SendTurnOptions = {
   signal?: AbortSignal;
   onEvent?: (e: SessionEvent) => void;
+  /**
+   * Override the session's default model for this turn only.
+   * Falls back to the session's stored model when absent.
+   */
+  model?: string;
 };
 
 export type CreateSessionOptions = {

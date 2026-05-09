@@ -10,7 +10,7 @@
   "packageManager": "pnpm@11.0.9",
   "scripts": {
     "start": "electron-vite preview",
-    "predev": "pnpm -F @flow-build/rote run gen",
+    "predev": "pnpm -F @flow-build/rote run gen && node scripts/bootstrap-rote.mjs",
     "dev": "electron-vite dev",
     "prebuild": "pnpm -F @flow-build/rote run gen",
     "build": "electron-vite build",

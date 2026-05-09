@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, appendFile, writeFile, readFile, readdir } from "node:fs/promises";
+import { mkdir, appendFile, writeFile, readFile, readdir, open, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { State } from "@flow-build/flowbuilder";
 import type { Envelope, RunEvent, RunManifest } from "./types.js";
@@ -81,6 +81,45 @@ export async function readRunResult(
     ? (JSON.parse(await readFile(outputsPath, "utf8")) as Record<string, Envelope>)
     : {};
   return { manifest, events, outputs };
+}
+
+export type RunEventTail = {
+  events: RunEvent[];
+  nextCursor: number;
+};
+
+export async function readEventsFrom(
+  baseDir: string,
+  sessionId: string,
+  runId: string,
+  sinceCursor: number,
+): Promise<RunEventTail> {
+  const path = join(runDir(baseDir, sessionId, runId), "events.jsonl");
+  if (!existsSync(path)) return { events: [], nextCursor: sinceCursor };
+  const size = (await stat(path)).size;
+  // File truncated (or unexpected shrink): reset to current size.
+  if (sinceCursor > size) return { events: [], nextCursor: size };
+  if (sinceCursor === size) return { events: [], nextCursor: size };
+  const length = size - sinceCursor;
+  const buf = Buffer.alloc(length);
+  const fh = await open(path, "r");
+  try {
+    await fh.read(buf, 0, length, sinceCursor);
+  } finally {
+    await fh.close();
+  }
+  // Only consume bytes up to the last newline; keep partial trailing line for next call.
+  const lastNl = buf.lastIndexOf(0x0a /* \n */);
+  if (lastNl === -1) {
+    // No complete line available yet; do not advance cursor.
+    return { events: [], nextCursor: sinceCursor };
+  }
+  const consumed = buf.subarray(0, lastNl + 1).toString("utf8");
+  const events: RunEvent[] = consumed
+    .split("\n")
+    .filter((l) => l.length > 0)
+    .map((l) => JSON.parse(l) as RunEvent);
+  return { events, nextCursor: sinceCursor + lastNl + 1 };
 }
 
 export async function listRuns(baseDir: string, sessionId: string): Promise<RunManifest[]> {

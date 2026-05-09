@@ -53,8 +53,10 @@ kbd {
 .app {
   display: grid;
   grid-template-columns: 268px 1fr;
+  grid-template-rows: 100vh;
   background: var(--bg);
   position: relative;
+  overflow: hidden;
 }
 .app.density-compact {
   font-size: 12.5px;
@@ -390,6 +392,13 @@ kbd {
   max-height: 220px;
   overflow-y: auto;
 }
+.sb-extras::-webkit-scrollbar {
+  width: 6px;
+}
+.sb-extras::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
+}
 
 /* RunSidebar */
 .rs-list {
@@ -704,10 +713,12 @@ kbd {
 /* Empty state */
 .empty {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
+  overflow-y: auto;
   padding: 24px 32px;
   max-width: 760px;
   margin: 0 auto;
@@ -1017,6 +1028,90 @@ kbd {
   filter: brightness(1.06);
 }
 
+/* Model pill */
+.mp-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.mp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px 5px 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s;
+}
+.mp:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-2);
+}
+.mp:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.mp-name {
+  font-family: "Geist Mono", monospace;
+}
+.mp-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+.mp-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.mp-menu::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
+}
+.mp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+.mp-row:hover {
+  background: var(--surface-2);
+}
+.mp-row.is-active {
+  background: var(--surface-3);
+}
+.mp-row-name {
+  font-weight: 500;
+}
+.mp-row-price {
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* Chat + flow split */
 .chatflow {
   flex: 1;
@@ -1063,7 +1158,7 @@ kbd {
   padding: 14px 20px 8px;
   flex: 1;
   min-height: 80px;
-  max-height: 280px;
+  max-height: clamp(120px, 50vh, 560px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -2563,6 +2658,93 @@ body.is-panning * {
 .app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-meta,
 .app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-ico {
   display: none;
+}
+
+/* Rail mode: normalize all icon containers to 34x34 and center them in the
+   60px-wide rail so logo, action buttons, flow chips, and the user avatar
+   share the same visual footprint. The run-log dots are intentionally left
+   alone. */
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-brand {
+  padding: 14px 13px 12px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-mark {
+  width: 34px;
+  height: 34px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-mark svg {
+  width: 22px;
+  height: 22px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-new,
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-refresh {
+  width: 34px;
+  height: 34px;
+  margin: 4px 13px 8px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-new svg,
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-refresh svg {
+  width: 16px;
+  height: 16px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-section {
+  padding: 10px 13px 4px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-item {
+  padding: 4px 0;
+  justify-content: center;
+  gap: 0;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-chip {
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-foot {
+  padding: 10px 13px;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-user {
+  justify-content: center;
+  gap: 0;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+
+/* RunSidebar: collapse each row into a small colored dot in rail mode. */
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-list {
+  padding: 6px 0;
+  align-items: center;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-head,
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-time,
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-id {
+  display: none;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-row {
+  width: 28px;
+  min-width: 0;
+  padding: 4px;
+  justify-content: center;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-status {
+  font-size: 0;
+  min-width: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  opacity: 1;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-succeeded .rs-status {
+  background: #86efac;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .rs-failed .rs-status {
+  background: #fca5a5;
 }
 
 @media (max-width: 820px) {

@@ -9,6 +9,7 @@ import {
   type RunStarter,
   type RunResultReader,
   type RunWaiter,
+  type RunEventTailReader,
 } from "./mcp-server.js";
 
 export type FlowbuilderPluginOptions = {
@@ -17,6 +18,7 @@ export type FlowbuilderPluginOptions = {
   runStarter?: RunStarter;
   runResultReader?: RunResultReader;
   waitForRunEnd?: RunWaiter;
+  tailReader?: RunEventTailReader;
 };
 
 type StashedState = {
@@ -48,6 +50,7 @@ export function createFlowbuilderPlugin(opts: FlowbuilderPluginOptions): Plugin 
         runStarter: opts.runStarter ?? (async () => { throw new Error("execute_flow not available in this context"); }),
         runResultReader: opts.runResultReader ?? (async () => { throw new Error("get_run_result not available"); }),
         waitForRunEnd: opts.waitForRunEnd ?? (async () => {}),
+        ...(opts.tailReader ? { tailReader: opts.tailReader } : {}),
       });
       const stash: StashedState = { session, loaded, handle };
       ctx.state.set(STATE_KEY, stash);
