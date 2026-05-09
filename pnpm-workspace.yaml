@@ -1,4 +1,8 @@
 packages:
   - "packages/*"
 allowBuilds:
+  electron: false
+  electron-winstaller: false
+  esbuild: false
+  sharp: false
   sqlite3: false
