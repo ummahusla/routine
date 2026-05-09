@@ -20,6 +20,9 @@ importers:
       '@flow-build/core':
         specifier: workspace:*
         version: link:packages/core
+      '@flow-build/engine':
+        specifier: workspace:*
+        version: link:packages/engine
       '@flow-build/flowbuilder':
         specifier: workspace:*
         version: link:packages/flowbuilder
