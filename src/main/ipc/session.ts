@@ -78,9 +78,11 @@ export function registerSessionIpc(ipc: IpcMain, deps: IpcDeps): void {
     if (!parsed.success) return invalid(parsed.error.message);
     try {
       const session = await deps.registry.open(parsed.data.sessionId);
-      const result: TurnResult = await session.send(parsed.data.prompt, {
+      const sendOpts: { model?: string; onEvent: (ev: SessionEvent) => void } = {
         onEvent: (ev: SessionEvent) => deps.registry.fanout(parsed.data.sessionId, ev),
-      });
+      };
+      if (parsed.data.model) sendOpts.model = parsed.data.model;
+      const result: TurnResult = await session.send(parsed.data.prompt, sendOpts);
       return { ok: true, ...result };
     } catch (err) {
       return harnessFail(err);
