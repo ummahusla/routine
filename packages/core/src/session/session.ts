@@ -1,5 +1,5 @@
 import { Agent } from "@cursor/sdk";
-import { type HarnessError, mapToHarnessError } from "../errors.js";
+import { ConfigError, type HarnessError, mapToHarnessError } from "../errors.js";
 import { normalize } from "../normalizer.js";
 import { withRetry } from "../retry.js";
 import { PluginHost } from "../plugin/host.js";
@@ -204,6 +204,11 @@ export class Session {
 
       let live: LiveRun;
       try {
+        if (!this.apiKey) {
+          throw new ConfigError(
+            "CURSOR_API_KEY is not set. Add it to .env or .env.local at the repo root, then restart the app.",
+          );
+        }
         live = await withRetry<LiveRun>(
           async () => {
             let agent;

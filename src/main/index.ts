@@ -14,19 +14,23 @@ import { SessionRegistry } from "./registry.js";
 import { registerSessionIpc } from "./ipc/session.js";
 
 function loadLocalEnv(): void {
-  const envPath = join(process.cwd(), ".env.local");
-  if (!existsSync(envPath)) return;
+  // Precedence (Vite-like): shell env > .env.local > .env. We iterate the
+  // higher-priority file first and use `??=` so an earlier set wins.
+  for (const file of [".env.local", ".env"]) {
+    const envPath = join(process.cwd(), file);
+    if (!existsSync(envPath)) continue;
 
-  const env = readFileSync(envPath, "utf8");
-  for (const line of env.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const index = trimmed.indexOf("=");
-    if (index === -1) continue;
-    const key = trimmed.slice(0, index).trim();
-    const rawValue = trimmed.slice(index + 1).trim();
-    const value = rawValue.replace(/^['"]|['"]$/g, "");
-    process.env[key] ??= value;
+    const env = readFileSync(envPath, "utf8");
+    for (const line of env.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const index = trimmed.indexOf("=");
+      if (index === -1) continue;
+      const key = trimmed.slice(0, index).trim();
+      const rawValue = trimmed.slice(index + 1).trim();
+      const value = rawValue.replace(/^['"]|['"]$/g, "");
+      process.env[key] ??= value;
+    }
   }
 }
 
@@ -62,6 +66,15 @@ if (!gotLock) {
 
 loadLocalEnv();
 configureCursorRipgrepPath();
+
+// The cursor SDK leaks ConnectRPC stream rejections after agent.close().
+// Log + swallow them so the renderer's IPC handlers stay deterministic and
+// terminal output stays readable.
+process.on("unhandledRejection", (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  const code = (reason as { code?: string } | null | undefined)?.code;
+  console.warn(`[main] swallowed unhandledRejection${code ? ` (${code})` : ""}: ${message}`);
+});
 
 const registry = new SessionRegistry<Session>({
   openSession: (sessionId) => loadSession({ baseDir: getBaseDir(), sessionId }),
