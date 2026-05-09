@@ -1,5 +1,8 @@
 node_modules
 dist
+out
 .DS_Store
 *.local
 .vite
+.eslintcache
+*.log*
