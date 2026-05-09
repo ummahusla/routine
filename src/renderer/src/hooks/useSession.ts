@@ -26,7 +26,7 @@ function applyEvent(turns: PersistedTurn[], ev: SessionEvent): PersistedTurn[] {
       },
     ];
   }
-  const idx = turns.findIndex((t) => "turnId" in ev && t.turnId === (ev as { turnId: string }).turnId);
+  const idx = turns.findIndex((t) => t.turnId === ev.turnId);
   if (idx < 0) return turns;
   const next = turns.slice();
   const t = { ...next[idx]!, assistant: { ...next[idx]!.assistant } };
@@ -77,8 +77,12 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "loaded":
       return { metadata: action.metadata, turns: action.turns, loading: false };
-    case "event":
+    case "event": {
+      if (action.ev.type === "error" && action.ev.code === "DELETED") {
+        return { ...state, error: "session deleted" };
+      }
       return { ...state, turns: applyEvent(state.turns, action.ev) };
+    }
     case "error":
       return { ...state, loading: false, error: action.message };
     case "reset":

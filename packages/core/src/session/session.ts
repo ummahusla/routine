@@ -309,7 +309,7 @@ export class Session {
               for (const e2 of out) {
                 persistEvent(e2);
                 if (e2.type === "text") finalText += e2.delta;
-                onEvent(e2);
+                onEvent({ ...e2, turnId });
                 if (e2.type === "tool_start" || e2.type === "tool_end") {
                   const snap: ToolCallSnapshot = {
                     callId: e2.callId,

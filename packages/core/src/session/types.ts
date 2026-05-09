@@ -11,7 +11,7 @@ export type TurnStatus =
   | "interrupted";
 
 export type SessionEvent =
-  | HarnessEvent
+  | (HarnessEvent & { turnId: string })
   | { type: "user"; turnId: string; text: string }
   | { type: "turn_open"; turnId: string }
   | { type: "turn_start"; turnId: string; model: string; agentId: string }
