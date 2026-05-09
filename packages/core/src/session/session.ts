@@ -394,8 +394,11 @@ export class Session {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    if (this.activeTurn) await this.cancel();
-    releaseLock(lockPath(this.baseDir, this.sessionId));
+    try {
+      if (this.activeTurn) await this.cancel();
+    } finally {
+      releaseLock(lockPath(this.baseDir, this.sessionId));
+    }
   }
 
   private async updateMeta(args: {

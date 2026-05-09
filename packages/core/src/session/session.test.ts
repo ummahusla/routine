@@ -126,4 +126,30 @@ describe("Session.send", () => {
     expect(lastSent).toContain("first reply");
     expect(lastSent).toContain("User: second prompt");
   });
+
+  it("cancel mid-turn produces status=cancelled", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
+    let resolveStream!: () => void;
+    const blockedStream = new Promise<void>((r) => (resolveStream = r));
+    const fa = makeFakeAgent({ waitResult: { status: "cancelled" } });
+    fa.run.stream = async function* () {
+      await blockedStream;
+    };
+    installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({ baseDir: dir, sessionId: "S1", apiKey: "crsr_test" });
+    const sendPromise = session.send("hi");
+    // Give the send() call time to enter the stream loop
+    await new Promise((r) => setTimeout(r, 10));
+    await session.cancel();
+    resolveStream();
+    const result = await sendPromise;
+    expect(result.status).toBe("cancelled");
+
+    const lines = readFileSync(eventsPath(dir, "S1"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    const last = lines[lines.length - 1];
+    expect(last.kind).toBe("turn_end");
+    expect(last.status).toBe("cancelled");
+  });
 });
