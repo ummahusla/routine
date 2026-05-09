@@ -32,6 +32,13 @@ export class NetworkError extends HarnessError {
   }
 }
 
+export class PluginHostError extends HarnessError {
+  constructor(message: string, opts: ErrorOpts = {}) {
+    super(message, { retryable: false, ...opts });
+    this.name = "PluginHostError";
+  }
+}
+
 export function mapToHarnessError(e: unknown): HarnessError {
   if (e instanceof HarnessError) return e;
   const name = (e as { name?: string } | null | undefined)?.name ?? "";

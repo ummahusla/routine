@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { withRetry } from "./retry.js";
-import { NetworkError, AuthError, HarnessError } from "./errors.js";
+import { NetworkError, AuthError } from "./errors.js";
 
 describe("withRetry", () => {
   beforeEach(() => vi.useFakeTimers());

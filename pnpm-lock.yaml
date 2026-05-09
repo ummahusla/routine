@@ -75,6 +75,9 @@ importers:
       '@flow-build/core':
         specifier: workspace:*
         version: link:../core
+      '@flow-build/rote':
+        specifier: workspace:*
+        version: link:../rote
       commander:
         specifier: ^12.0.0
         version: 12.1.0
@@ -91,6 +94,16 @@ importers:
       '@cursor/sdk':
         specifier: ^1.0.0
         version: 1.0.12
+    devDependencies:
+      '@flow-build/rote':
+        specifier: workspace:*
+        version: link:../rote
+
+  packages/rote:
+    dependencies:
+      '@flow-build/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

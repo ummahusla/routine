@@ -65,6 +65,7 @@ describe("renderer", () => {
     render({ type: "tool_start", name: "shell", callId: "1" });
     render({ type: "thinking", delta: "x" });
     render({ type: "tool_end", name: "shell", callId: "1", ok: true });
+    // eslint-disable-next-line no-control-regex
     expect(cap.capturedStdout()).not.toMatch(/\x1b\[/);
   });
 
@@ -72,6 +73,7 @@ describe("renderer", () => {
     const cap = captureWrites();
     const render = makeRenderer({ stdout: cap.stdout, stderr: cap.stderr, color: true });
     render({ type: "tool_start", name: "shell", callId: "1" });
+    // eslint-disable-next-line no-control-regex
     expect(cap.capturedStdout()).toMatch(/\x1b\[/);
   });
 });

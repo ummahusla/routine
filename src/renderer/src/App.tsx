@@ -306,6 +306,86 @@ export function App() {
     );
   }
 
+  function buildCursorChatPrompt(userPrompt: string): string {
+    const flowContext = flow
+      ? {
+          title: flow.title,
+          summary: flow.summary,
+          nodes: flow.nodes.map(({ id, type, label, sub, col, row, prompt }) => ({
+            id,
+            type,
+            label,
+            sub,
+            col,
+            row,
+            ...(prompt ? { prompt } : {}),
+          })),
+          edges: flow.edges,
+        }
+      : null;
+    const recentMessages = messages.slice(-6).map(({ role, text }) => ({ role, text }));
+
+    return `You are FlowBuild's flow design copilot inside an Electron app.
+
+The user is chatting about the current visual automation flow. Help them think through dynamic changes to the flow, but do not edit files, do not run commands, and do not return JSON yet.
+
+For now, respond in concise natural language:
+- explain what changes you would make to nodes and edges
+- mention which existing nodes are affected by id and label when useful
+- call out any ambiguity before assuming a destructive change
+- if the user asks for an implementation, describe the intended flow mutation rather than producing code
+
+Current flow snapshot:
+${JSON.stringify(flowContext, null, 2)}
+
+Recent chat:
+${JSON.stringify(recentMessages, null, 2)}
+
+User message:
+${userPrompt}`;
+  }
+
+  function runCursorChat(prompt: string): void {
+    const id = `cursor-${Date.now().toString(36)}`;
+    const agentPrompt = buildCursorChatPrompt(prompt);
+    setMessages((current) => [...current, { id, role: "ai", text: "", streaming: true }]);
+
+    void window.api.cursorChat
+      .send(agentPrompt, (event) => {
+        setMessages((current) =>
+          current.map((message) => {
+            if (message.id !== id || message.role !== "ai") return message;
+            if (event.type === "text") return { ...message, text: message.text + event.text };
+            if (event.type === "done") return { ...message, streaming: false };
+            return { ...message, text: `Cursor SDK error: ${event.error}`, streaming: false };
+          }),
+        );
+      })
+      .then((result) => {
+        setMessages((current) =>
+          current.map((message) => {
+            if (message.id !== id || message.role !== "ai") return message;
+            if (result.ok) {
+              return {
+                ...message,
+                text: message.text || `Cursor run finished with status: ${result.status}`,
+                streaming: false,
+              };
+            }
+            return { ...message, text: `Cursor SDK error: ${result.error}`, streaming: false };
+          }),
+        );
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Unknown Cursor SDK error";
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === id && item.role === "ai" ? { ...item, text: `Cursor SDK error: ${message}`, streaming: false } : item,
+          ),
+        );
+      });
+  }
+
   function handleRefine(): void {
     const value = refineVal.trim();
     if (!value) return;
@@ -346,23 +426,7 @@ export function App() {
       return;
     }
 
-    setBuilding(true);
-    window.setTimeout(() => {
-      const tplId = matchTemplate(value);
-      const tpl = FLOW_TEMPLATES[tplId];
-      setFlow(cloneFlow(tpl));
-      setSelectedId(tplId);
-      setBuilding(false);
-      setRunState({});
-      setMessages((current) => [
-        ...current,
-        {
-          role: "ai",
-          text: `Updated. ${tpl.summary}`,
-          steps: [`Re-mapped ${tpl.nodes.length} steps`, `Diff applied · 0 breaking changes`],
-        },
-      ]);
-    }, 700);
+    runCursorChat(value);
   }
 
   return (
