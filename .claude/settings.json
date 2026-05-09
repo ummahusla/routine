@@ -24,7 +24,14 @@
       "Bash(tar -xzf /Users/arina/.claude/projects/-Users-arina-Documents-Dev-flow-build/591e25c3-1aaa-4274-add4-f4b2a35478d0/tool-results/webfetch-1778320687478-b8xqve.bin -C /tmp/design-pkg4)",
       "Read(//private/tmp/design-pkg3/flowbuild/**)",
       "Read(//private/tmp/design-pkg4/flowbuild/chats/**)",
-      "Read(//private/tmp/design-pkg4/flowbuild/project/**)"
+      "Read(//private/tmp/design-pkg4/flowbuild/project/**)",
+      "Read(//private/tmp/design-pkg5/flowbuild/project/**)",
+      "Bash(rm -rf /tmp/design-pkg6)",
+      "Bash(mkdir -p /tmp/design-pkg6)",
+      "Bash(tar -xzf /Users/arina/.claude/projects/-Users-arina-Documents-Dev-flow-build/591e25c3-1aaa-4274-add4-f4b2a35478d0/tool-results/webfetch-1778323741538-rzs1kh.bin -C /tmp/design-pkg6)",
+      "Read(//private/tmp/design-pkg5/flowbuild/**)",
+      "Read(//private/tmp/design-pkg6/flowbuild/chats/**)",
+      "Read(//private/tmp/design-pkg6/flowbuild/project/**)"
     ]
   }
 }

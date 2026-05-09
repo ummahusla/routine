@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEventHandler } from "react";
+import type { CSSProperties, MouseEvent, MouseEventHandler } from "react";
 import { ICONS } from "../data/icons";
 import { TYPE_COLORS } from "../data/typeColors";
 import { NODE_W, NODE_H } from "../data/constants";
@@ -12,9 +12,11 @@ type FlowNodeProps = {
   idx: number;
   runState: RunState;
   dragging: boolean;
+  connecting?: boolean;
   onMouseDown: MouseEventHandler<HTMLDivElement>;
   onDelete?: () => void;
   onPromptChange?: (id: string, prompt: string) => void;
+  onPortDown?: (event: MouseEvent<HTMLDivElement>, node: FlowNodeModel) => void;
 };
 
 export function FlowNode({
@@ -22,9 +24,11 @@ export function FlowNode({
   idx,
   runState,
   dragging,
+  connecting,
   onMouseDown,
   onDelete,
   onPromptChange,
+  onPortDown,
 }: FlowNodeProps) {
   const color = TYPE_COLORS[n.type];
   const { x, y } = nodePos(n);
@@ -37,7 +41,8 @@ export function FlowNode({
 
   return (
     <div
-      className={`fc-node fc-type-${n.type} ${status ? `fc-status-${status}` : ""} ${dragging ? "is-dragging" : ""} ${isPrompt ? "fc-node-prompt" : ""}`}
+      className={`fc-node fc-type-${n.type} ${status ? `fc-status-${status}` : ""} ${dragging ? "is-dragging" : ""} ${isPrompt ? "fc-node-prompt" : ""} ${connecting ? "is-connect-target" : ""}`}
+      data-node-id={n.id}
       style={{
         left: x,
         top: y,
@@ -72,6 +77,11 @@ export function FlowNode({
       <div
         className="fc-port fc-port-r"
         style={isPrompt ? { top: "auto", bottom: "26px", transform: "none" } : undefined}
+        title="Drag to connect"
+        onMouseDown={(event) => {
+          event.stopPropagation();
+          onPortDown?.(event, n);
+        }}
       />
       <button
         className="fc-del"

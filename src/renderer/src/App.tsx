@@ -264,6 +264,39 @@ export function App() {
     });
   }
 
+  function handleDeleteEdge(from: string, to: string): void {
+    setFlow((current) =>
+      current && {
+        ...current,
+        edges: current.edges.filter(([a, b]) => !(a === from && b === to)),
+      },
+    );
+  }
+
+  // Add an edge from -> to. Dedupes against existing edges and rejects
+  // additions that would create a cycle (via forward DFS from `to`).
+  function handleAddEdge(from: string, to: string): void {
+    if (!from || !to || from === to) return;
+    setFlow((current) => {
+      if (!current) return current;
+      if (current.edges.some(([a, b]) => a === from && b === to)) return current;
+      const adj: Record<string, string[]> = {};
+      current.edges.forEach(([a, b]) => {
+        (adj[a] ||= []).push(b);
+      });
+      const seen = new Set<string>();
+      const stack = [to];
+      while (stack.length) {
+        const cur = stack.pop()!;
+        if (cur === from) return current;
+        if (seen.has(cur)) continue;
+        seen.add(cur);
+        (adj[cur] || []).forEach((next) => stack.push(next));
+      }
+      return { ...current, edges: [...current.edges, [from, to]] };
+    });
+  }
+
   function handlePromptChange(id: string, prompt: string): void {
     setFlow((current) =>
       current && {
@@ -359,6 +392,8 @@ export function App() {
                   onFocus={setFocusId}
                   onMoveNode={handleMoveNode}
                   onDeleteNode={handleDeleteNode}
+                  onDeleteEdge={handleDeleteEdge}
+                  onAddEdge={handleAddEdge}
                   onPromptChange={handlePromptChange}
                 />
                 {t.showMinimap && flow && <Minimap flow={flow} />}

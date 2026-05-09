@@ -3,8 +3,8 @@ import type { Flow, FlowNode, NodeBox, Point } from "../types";
 
 const COL_PITCH = NODE_W + GAP_X;
 const ROW_PITCH = NODE_H + GAP_Y;
-const PAD_X = 48;
-const PAD_Y = 56;
+export const PAD_X = 48;
+export const PAD_Y = 56;
 
 export function cloneFlow(flow: Flow | null | undefined): Flow | null {
   if (!flow) return null;
@@ -55,7 +55,13 @@ export function nodeBox(node: FlowNode): NodeBox {
   return { x, y, w: NODE_W, h: NODE_H, cx: x + NODE_W / 2, cy: y + NODE_H / 2 };
 }
 
-export function edgePath(from: FlowNode, to: FlowNode): string {
+export type EdgeGeom = {
+  d: string;
+  mx: number;
+  my: number;
+};
+
+export function edgeGeom(from: FlowNode, to: FlowNode): EdgeGeom {
   const fromBox = nodeBox(from);
   const toBox = nodeBox(to);
   const x1 = fromBox.x + fromBox.w;
@@ -63,5 +69,13 @@ export function edgePath(from: FlowNode, to: FlowNode): string {
   const x2 = toBox.x;
   const y2 = toBox.y + toBox.h / 2;
   const dx = Math.max(28, Math.abs(x2 - x1) * 0.55);
-  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+  const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+  // Bezier midpoint at t=0.5: average of endpoints + 3× average of controls
+  const mx = (x1 + 3 * (x1 + dx) + 3 * (x2 - dx) + x2) / 8;
+  const my = (y1 + 3 * y1 + 3 * y2 + y2) / 8;
+  return { d, mx, my };
+}
+
+export function edgePath(from: FlowNode, to: FlowNode): string {
+  return edgeGeom(from, to).d;
 }

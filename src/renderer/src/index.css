@@ -173,8 +173,13 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 .fc-wrap { padding: 16px; min-width: max-content; min-height: 100%; box-sizing: border-box; }
 .fc-canvas { position: relative; cursor: default; }
 .fc-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
-.fc-edge { fill: none; stroke: rgba(200,205,215,0.32); stroke-width: 1.4; stroke-linecap: round; opacity: 0; animation: edgeIn .3s ease-out forwards; }
+.fc-edge { fill: none; stroke: rgba(200,205,215,0.32); stroke-width: 1.4; stroke-linecap: round; opacity: 0; animation: edgeIn .3s ease-out forwards; transition: stroke .15s ease, stroke-width .15s ease; }
 .fc-edge.is-active { stroke: var(--accent); stroke-width: 1.8; }
+.fc-edge.is-hover { stroke: var(--rose); stroke-width: 2; }
+.fc-edge-hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
+.fc-edge-del { position: absolute; transform: translate(-50%, -50%); width: 18px; height: 18px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border-2); color: var(--muted); display: grid; place-items: center; padding: 0; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s ease, background .12s ease, color .12s ease, border-color .12s ease; z-index: 4; }
+.fc-edge-del.is-visible { opacity: 1; pointer-events: auto; }
+.fc-edge-del:hover { background: var(--rose); color: white; border-color: var(--rose); }
 @keyframes edgeIn { from { opacity: 0; stroke-dasharray: 200; stroke-dashoffset: 200; } to { opacity: 1; stroke-dashoffset: 0; } }
 
 .fc-node { position: absolute; border: 1px solid; border-radius: 9px; background: var(--surface); cursor: pointer; transition: transform .14s, box-shadow .14s, border-color .14s; opacity: 0; animation: nodeIn .3s cubic-bezier(.2,.7,.3,1) forwards; backdrop-filter: blur(8px); }
@@ -184,9 +189,15 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 .fc-label { flex: 1; min-width: 0; }
 .fc-name { font-size: 12.5px; font-weight: 500; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fc-sub { font-size: 10.5px; color: var(--muted); font-family: "Geist Mono", monospace; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fc-port { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border-2); top: 50%; transform: translateY(-50%); }
+.fc-port { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border-2); top: 50%; transform: translateY(-50%); transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease; }
 .fc-port-l { left: -4px; }
-.fc-port-r { right: -4px; }
+.fc-port-r { right: -4px; cursor: crosshair; }
+.fc-node:hover .fc-port-r { transform: translateY(-50%) scale(1.5); background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 25%, transparent); }
+.fc-node-prompt:hover .fc-port-r { transform: scale(1.5); }
+.fc-edges-overlay { pointer-events: none; z-index: 5; }
+.fc-edge-ghost { stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 4 4; opacity: .9; animation: none; }
+.fc-node.is-connect-target { outline: 1px dashed color-mix(in oklab, var(--accent) 70%, transparent); outline-offset: 3px; }
+.fc-node.is-connect-target .fc-port-l { background: var(--accent); border-color: var(--accent); transform: translateY(-50%) scale(1.5); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 25%, transparent); }
 
 /* Node delete + dragging */
 .fc-del { position: absolute; top: -8px; right: -8px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border-2); color: var(--muted); display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, background .12s; padding: 0; }
