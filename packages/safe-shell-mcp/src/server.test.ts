@@ -77,4 +77,21 @@ describe("safe-shell mcp server", () => {
       await close();
     }
   });
+
+  it("advertises typed schema for command (not unknown)", async () => {
+    const { client, close } = await pair();
+    try {
+      const list = await client.listTools();
+      const sh = list.tools.find((t) => t.name === "sh");
+      expect(sh).toBeDefined();
+      const props =
+        (sh!.inputSchema as { properties?: Record<string, { type?: string }> }).properties ?? {};
+      expect(props.command?.type).toBe("string");
+      expect(props.timeoutMs?.type).toBe("number");
+      expect(props.maxBytes?.type).toBe("number");
+      expect(props.cwd?.type).toBe("string");
+    } finally {
+      await close();
+    }
+  });
 });
