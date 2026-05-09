@@ -35,8 +35,12 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 .sb-brand-tag { font-size: 10px; padding: 2px 5px; background: var(--surface-3); color: var(--muted); border-radius: 4px; margin-left: 2px; font-family: "Geist Mono", monospace; }
 .sb-new { margin: 4px 12px 8px; display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: var(--surface-3); border: 1px solid var(--border-2); color: var(--text); border-radius: 8px; cursor: pointer; font-size: 12.5px; transition: background .12s; }
 .sb-new:hover { background: #262631; }
+.sb-new.is-active { border-color: color-mix(in oklab, var(--accent) 45%, var(--border-2)); }
 .sb-new span { flex: 1; text-align: left; }
 .sb-new kbd { background: rgba(255,255,255,0.04); }
+.sb-refresh { margin: 0 12px 8px; display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; cursor: pointer; font-size: 12px; transition: background .12s, color .12s; }
+.sb-refresh:hover { background: var(--surface-2); color: var(--text); }
+.sb-refresh span { flex: 1; text-align: left; }
 .sb-search { display: flex; align-items: center; gap: 7px; margin: 4px 12px 6px; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; color: var(--muted); }
 .sb-search input { background: transparent; border: 0; outline: 0; color: var(--text); font-size: 12.5px; width: 100%; font-family: inherit; }
 .sb-section { flex: 1; overflow-y: auto; padding: 10px 8px 4px; min-height: 0; }
@@ -152,7 +156,7 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 
 /* Chat + flow split */
 .chatflow { flex: 1; display: grid; grid-template-rows: 1fr auto; min-height: 0; overflow: hidden; }
-.chatflow-readonly { grid-template-rows: 1fr; }
+.chatflow-session { grid-template-rows: 1fr auto; }
 .cf-bottom { display: flex; flex-direction: column; border-top: 1px solid var(--border); background: var(--bg); flex-shrink: 0; }
 .ct-resizer { position: relative; height: 6px; cursor: ns-resize; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); }
 .ct-resizer:hover .ct-resizer-grip,

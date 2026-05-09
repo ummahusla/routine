@@ -43,14 +43,26 @@ function FlowItem({ session, active, onClick }: FlowItemProps) {
 type SidebarProps = {
   sessions: FlowbuilderSessionSummary[];
   selectedId: string | null;
+  localActive: boolean;
   loading: boolean;
   error: string | null;
   baseDir: string;
   onSelect: (id: string) => void;
+  onNew: () => void;
   onRefresh: () => void;
 };
 
-export function Sidebar({ sessions, selectedId, loading, error, baseDir, onSelect, onRefresh }: SidebarProps) {
+export function Sidebar({
+  sessions,
+  selectedId,
+  localActive,
+  loading,
+  error,
+  baseDir,
+  onSelect,
+  onNew,
+  onRefresh,
+}: SidebarProps) {
   const [q, setQ] = useState("");
   const filtered = useMemo(
     () =>
@@ -71,7 +83,15 @@ export function Sidebar({ sessions, selectedId, loading, error, baseDir, onSelec
         <div className="sb-brand-tag">beta</div>
       </div>
 
-      <button className="sb-new" onClick={onRefresh}>
+      <button className={`sb-new ${localActive ? "is-active" : ""}`} onClick={onNew}>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        <span>New chat</span>
+        <kbd>⌘ N</kbd>
+      </button>
+
+      <button className="sb-refresh" onClick={onRefresh}>
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 12a9 9 0 0 1-15.4 6.4L3 16" />
           <path d="M3 21v-5h5" />
@@ -79,7 +99,6 @@ export function Sidebar({ sessions, selectedId, loading, error, baseDir, onSelec
           <path d="M21 3v5h-5" />
         </svg>
         <span>{loading ? "Loading sessions" : "Refresh sessions"}</span>
-        <kbd>read only</kbd>
       </button>
 
       <div className="sb-search">
