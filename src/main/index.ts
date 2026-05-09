@@ -38,6 +38,31 @@ function loadLocalEnv(): void {
   }
 }
 
+function configureCursorRipgrepPath(): void {
+  if (process.env.CURSOR_RIPGREP_PATH) return;
+
+  const platformPackage =
+    process.platform === "darwin"
+      ? process.arch === "arm64"
+        ? "@cursor/sdk-darwin-arm64"
+        : "@cursor/sdk-darwin-x64"
+      : process.platform === "linux"
+        ? process.arch === "arm64"
+          ? "@cursor/sdk-linux-arm64"
+          : "@cursor/sdk-linux-x64"
+        : process.platform === "win32"
+          ? "@cursor/sdk-win32-x64"
+          : null;
+
+  if (!platformPackage) return;
+
+  const binaryName = process.platform === "win32" ? "rg.exe" : "rg";
+  const rgPath = join(process.cwd(), "node_modules", platformPackage, "bin", binaryName);
+  if (existsSync(rgPath)) {
+    process.env.CURSOR_RIPGREP_PATH = rgPath;
+  }
+}
+
 function extractAssistantText(event: unknown): string {
   if (!event || typeof event !== "object") return "";
   const maybeEvent = event as {
@@ -100,6 +125,7 @@ ipcMain.handle("cursor-chat:send", async (event, { requestId, prompt }: CursorCh
 });
 
 loadLocalEnv();
+configureCursorRipgrepPath();
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

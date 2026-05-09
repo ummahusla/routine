@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "../types";
 
 const VISIBLE_RECENT = 6;
@@ -23,7 +25,9 @@ function Message({ message }: { message: ChatMessage }) {
       </div>
       <div className="msg-body">
         <div className="msg-h">FlowBuild</div>
-        <div className="msg-text">{message.text || (message.streaming ? "Thinking…" : "")}</div>
+        <div className="msg-text">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text || (message.streaming ? "Thinking…" : "")}</ReactMarkdown>
+        </div>
         {message.steps && (
           <ul className="msg-steps">
             {message.steps.map((step) => (
