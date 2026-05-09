@@ -23,7 +23,7 @@ function Message({ message }: { message: ChatMessage }) {
       </div>
       <div className="msg-body">
         <div className="msg-h">FlowBuild</div>
-        <div className="msg-text">{message.text}</div>
+        <div className="msg-text">{message.text || (message.streaming ? "Thinking…" : "")}</div>
         {message.steps && (
           <ul className="msg-steps">
             {message.steps.map((step) => (
@@ -89,7 +89,7 @@ export function ChatThread({ messages, height, onResize }: ChatThreadProps) {
         )}
         <div className="ct-list">
           {visible.map((message, i) => (
-            <Message key={`${message.role}-${message.text}-${i}`} message={message} />
+            <Message key={message.id ?? `${message.role}-${message.text}-${i}`} message={message} />
           ))}
         </div>
       </div>

@@ -273,6 +273,46 @@ export function App() {
     );
   }
 
+  function runCursorChat(prompt: string): void {
+    const id = `cursor-${Date.now().toString(36)}`;
+    setMessages((current) => [...current, { id, role: "ai", text: "", streaming: true }]);
+
+    void window.api.cursorChat
+      .send(prompt, (event) => {
+        setMessages((current) =>
+          current.map((message) => {
+            if (message.id !== id || message.role !== "ai") return message;
+            if (event.type === "text") return { ...message, text: message.text + event.text };
+            if (event.type === "done") return { ...message, streaming: false };
+            return { ...message, text: `Cursor SDK error: ${event.error}`, streaming: false };
+          }),
+        );
+      })
+      .then((result) => {
+        setMessages((current) =>
+          current.map((message) => {
+            if (message.id !== id || message.role !== "ai") return message;
+            if (result.ok) {
+              return {
+                ...message,
+                text: message.text || `Cursor run finished with status: ${result.status}`,
+                streaming: false,
+              };
+            }
+            return { ...message, text: `Cursor SDK error: ${result.error}`, streaming: false };
+          }),
+        );
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Unknown Cursor SDK error";
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === id && item.role === "ai" ? { ...item, text: `Cursor SDK error: ${message}`, streaming: false } : item,
+          ),
+        );
+      });
+  }
+
   function handleRefine(): void {
     const value = refineVal.trim();
     if (!value) return;
@@ -313,23 +353,7 @@ export function App() {
       return;
     }
 
-    setBuilding(true);
-    window.setTimeout(() => {
-      const tplId = matchTemplate(value);
-      const tpl = FLOW_TEMPLATES[tplId];
-      setFlow(cloneFlow(tpl));
-      setSelectedId(tplId);
-      setBuilding(false);
-      setRunState({});
-      setMessages((current) => [
-        ...current,
-        {
-          role: "ai",
-          text: `Updated. ${tpl.summary}`,
-          steps: [`Re-mapped ${tpl.nodes.length} steps`, `Diff applied · 0 breaking changes`],
-        },
-      ]);
-    }, 700);
+    runCursorChat(value);
   }
 
   return (

@@ -68,13 +68,16 @@ export type RunState = Partial<Record<string, NodeStatus>>;
 
 export type ChatMessage =
   | {
+      id?: string;
       role: "user";
       text: string;
     }
   | {
+      id?: string;
       role: "ai";
       text: string;
       steps?: string[];
+      streaming?: boolean;
     };
 
 export type PreviousFlow = {
