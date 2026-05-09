@@ -242,19 +242,21 @@ export function NodeInspector({
           </svg>
         </button>
       </div>
-      <div className="ins-section">
-        <div className="ins-h2">Status</div>
-        <div className={`ins-status ins-status-${status || "idle"}`}>{statusText}</div>
-      </div>
-
-      <NodeBody source={source} flowInfo={flowInfo} />
-
-      {outputForNode !== null && (
+      <div className="ins-body">
         <div className="ins-section">
-          <div className="ins-h2">Run output</div>
-          <RunOutputDisplay value={outputForNode} />
+          <div className="ins-h2">Status</div>
+          <div className={`ins-status ins-status-${status || "idle"}`}>{statusText}</div>
         </div>
-      )}
+
+        <NodeBody source={source} flowInfo={flowInfo} />
+
+        {outputForNode !== null && (
+          <div className="ins-section">
+            <div className="ins-h2">Run output</div>
+            <RunOutputDisplay value={outputForNode} />
+          </div>
+        )}
+      </div>
       <div className="ins-foot">
         {readOnly ? (
           <div className="ins-note">

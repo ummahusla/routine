@@ -2326,8 +2326,28 @@ body.is-panning * {
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   z-index: 4;
   animation: slideIn 0.2s ease-out;
+}
+.ins-h,
+.ins-foot {
+  flex-shrink: 0;
+}
+.ins-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+.ins-body::-webkit-scrollbar {
+  width: 6px;
+}
+.ins-body::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
 }
 @keyframes slideIn {
   from {
@@ -2420,7 +2440,18 @@ body.is-panning * {
   word-break: break-word;
   overflow-wrap: anywhere;
   max-width: 100%;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+.ins-code::-webkit-scrollbar {
+  width: 6px;
+}
+.ins-code::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
 }
 .ins-output-prose {
   margin: 0;
