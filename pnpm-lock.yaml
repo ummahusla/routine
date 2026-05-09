@@ -75,6 +75,9 @@ importers:
       '@flow-build/core':
         specifier: workspace:*
         version: link:../core
+      '@flow-build/flowbuilder':
+        specifier: workspace:*
+        version: link:../flowbuilder
       '@flow-build/rote':
         specifier: workspace:*
         version: link:../rote
