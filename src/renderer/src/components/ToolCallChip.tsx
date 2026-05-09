@@ -1,5 +1,6 @@
 import { useState, type JSX } from "react";
 import type { PersistedTurn } from "@flow-build/core";
+import { ToolIcon } from "./ToolIcon";
 
 type Props = { call: PersistedTurn["assistant"]["toolCalls"][number] };
 
@@ -14,7 +15,9 @@ export function ToolCallChip({ call }: Props): JSX.Element {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className="tool-chip-toggle">{open ? "▾" : "▸"}</span>
+        <span className="tool-chip-icon" aria-hidden="true">
+          <ToolIcon name={call.name} />
+        </span>
         <span className="tool-chip-name">{call.name}</span>
         <span className="tool-chip-status">{status}</span>
       </button>
