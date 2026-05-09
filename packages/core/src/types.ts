@@ -17,6 +17,7 @@ export type RunOptions = {
   cwd: string;
   model?: string;
   apiKey?: string;
+  baseDir?: string;
   signal?: AbortSignal;
   onEvent: (e: HarnessEvent) => void;
   logger?: Logger;

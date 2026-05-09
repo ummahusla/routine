@@ -7,6 +7,7 @@ export type ResolvedConfig = {
   model: string;
   cwd: string;
   prompt: string;
+  baseDir?: string;
   retry: { attempts: number; baseDelayMs: number };
 };
 
@@ -38,6 +39,7 @@ export function resolveConfig(opts: RunOptions): ResolvedConfig {
     model: opts.model ?? DEFAULTS.model,
     cwd: opts.cwd,
     prompt: opts.prompt,
+    ...(opts.baseDir !== undefined ? { baseDir: opts.baseDir } : {}),
     retry: {
       attempts: opts.retry?.attempts ?? DEFAULTS.retry.attempts,
       baseDelayMs: opts.retry?.baseDelayMs ?? DEFAULTS.retry.baseDelayMs,

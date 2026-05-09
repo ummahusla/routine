@@ -104,3 +104,37 @@ describe("resolveConfig", () => {
     expect(cfg.retry).toEqual({ attempts: 5, baseDelayMs: 1000 });
   });
 });
+
+describe("resolveConfig baseDir", () => {
+  let dir: string;
+  let prevKey: string | undefined;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "flow-build-"));
+    prevKey = process.env.CURSOR_API_KEY;
+    delete process.env.CURSOR_API_KEY;
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    if (prevKey !== undefined) process.env.CURSOR_API_KEY = prevKey;
+    else delete process.env.CURSOR_API_KEY;
+  });
+
+  it("passes through opts.baseDir when provided", () => {
+    process.env.CURSOR_API_KEY = "crsr_test";
+    const cfg = resolveConfig({
+      prompt: "p",
+      cwd: dir,
+      baseDir: "/tmp/base",
+      onEvent: () => {},
+    });
+    expect(cfg.baseDir).toBe("/tmp/base");
+  });
+
+  it("baseDir is undefined if not provided (caller decides default)", () => {
+    process.env.CURSOR_API_KEY = "crsr_test";
+    const cfg = resolveConfig({ prompt: "p", cwd: dir, onEvent: () => {} });
+    expect(cfg.baseDir).toBeUndefined();
+  });
+});
