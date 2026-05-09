@@ -136,6 +136,7 @@ export function flowbuilderStateToFlow(manifest: FlowbuilderManifest, state: Flo
       ...projection,
       col: layerOf[node.id] ?? 0,
       row: rowOf[node.id] ?? 0,
+      source: node,
     };
   });
 

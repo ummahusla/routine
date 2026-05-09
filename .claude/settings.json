@@ -48,7 +48,17 @@
       "Bash(tsc --noEmit)",
       "Bash(npx tsc *)",
       "Read(//Users/arina/.flowbuild/**)",
-      "Read(//Users/arina/Library/Application Support/flow-build/sessions/**)"
+      "Read(//Users/arina/Library/Application Support/flow-build/sessions/**)",
+      "Read(//Users/arina/.rote/flows/bootstrap/search-github-repositories/**)",
+      "Read(//Users/arina/.rote/flows/**)",
+      "Bash(pnpm --filter @flow-build/flowbuilder build)",
+      "Bash(pnpm -r build)",
+      "Bash(pnpm --filter @flow-build/flowbuilder test)",
+      "Bash(grep -n \"setManifest\\\\|setFlow\\(\\\\|setFlow$\" /Users/arina/Documents/Dev/flow-build/src/renderer/src/App.tsx)",
+      "Bash(pnpm test *)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }

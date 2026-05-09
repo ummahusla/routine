@@ -7,16 +7,27 @@
       "value": {
         "owner": "ummahusla",
         "repo": "flow-build",
+        "repository": "ummahusla/flow-build",
         "label": "flow-build repository"
       }
     },
     {
-      "id": "fetch_issues",
+      "id": "list_top_committers",
       "type": "flow",
-      "flow": "github/fetch-issues",
+      "flow": "github/list-top-committers",
       "params": {
-        "state": "open",
-        "limit": 20
+        "repository": "ummahusla/flow-build",
+        "limit": 10
+      }
+    },
+    {
+      "id": "extract_contacts",
+      "type": "flow",
+      "flow": "github/extract-contributor-contacts",
+      "params": {
+        "repository": "ummahusla/flow-build",
+        "username": "all",
+        "limit": 100
       }
     },
     {
@@ -31,10 +42,14 @@
   "edges": [
     {
       "from": "input_repo",
-      "to": "fetch_issues"
+      "to": "list_top_committers"
     },
     {
-      "from": "fetch_issues",
+      "from": "list_top_committers",
+      "to": "extract_contacts"
+    },
+    {
+      "from": "extract_contacts",
       "to": "digest_output"
     }
   ]

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "s_branch000000",
-  "name": "Support triage branch",
-  "description": "Classify a support ticket, fan out urgent and routine paths, merge, and return a response plan.",
+  "name": "Inbox triage branch",
+  "description": "Branch on incoming Gmail messages: urgent/enterprise mail triggers an oncall escalation send, routine mail gets a warm-reply draft, then merge into a single response plan.",
   "createdAt": "2026-05-09T11:00:00.000Z",
   "updatedAt": "2026-05-09T11:45:00.000Z"
 }

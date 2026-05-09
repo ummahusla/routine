@@ -42,6 +42,7 @@ export type FlowNode = {
   y?: number;
   prompt?: string;
   _userPlaced?: boolean;
+  source?: FlowbuilderNode;
 };
 
 export type FlowEdge = [string, string];
@@ -132,6 +133,33 @@ export type FlowbuilderReadSessionResult =
       ok: false;
       baseDir: string;
       sessionId: string;
+      error: string;
+    };
+
+export type FlowInfoParameter = {
+  name: string;
+  type?: string;
+  required?: boolean;
+  default?: string | number | boolean | null;
+  description?: string;
+};
+
+export type FlowInfoResult =
+  | {
+      ok: true;
+      flowRef: string;
+      tier: string;
+      name: string;
+      description: string;
+      requiresEndpoints: string[];
+      parameters: FlowInfoParameter[];
+      tags: string[];
+      flowType?: string;
+      kind?: string;
+    }
+  | {
+      ok: false;
+      flowRef: string;
       error: string;
     };
 

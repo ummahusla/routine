@@ -90,6 +90,33 @@ type FlowbuilderReadSessionResult =
       error: string;
     };
 
+type FlowInfoParameterLocal = {
+  name: string;
+  type?: string;
+  required?: boolean;
+  default?: string | number | boolean | null;
+  description?: string;
+};
+
+type FlowInfoResultLocal =
+  | {
+      ok: true;
+      flowRef: string;
+      tier: string;
+      name: string;
+      description: string;
+      requiresEndpoints: string[];
+      parameters: FlowInfoParameterLocal[];
+      tags: string[];
+      flowType?: string;
+      kind?: string;
+    }
+  | {
+      ok: false;
+      flowRef: string;
+      error: string;
+    };
+
 declare global {
   interface Window {
     electron: ElectronAPI;
@@ -97,6 +124,7 @@ declare global {
       flowbuilder: {
         listSessions(): Promise<FlowbuilderListSessionsResult>;
         readSession(sessionId: string): Promise<FlowbuilderReadSessionResult>;
+        getFlowInfo(flowRef: string): Promise<FlowInfoResultLocal>;
       };
       session: {
         list(): Promise<SessionMetadata[]>;
