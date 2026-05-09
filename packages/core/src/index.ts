@@ -20,3 +20,26 @@ export {
   NetworkError,
   PluginHostError,
 } from "./errors.js";
+export {
+  createSession,
+  loadSession,
+  listSessions,
+  deleteSession,
+  Session,
+} from "./session/index.js";
+export type {
+  SessionEvent,
+  SessionMetadata,
+  PersistedTurn,
+  TurnStatus,
+  TurnResult,
+  SendTurnOptions,
+  CreateSessionOptions,
+  LoadSessionOptions,
+} from "./session/types.js";
+export {
+  SessionBusyError,
+  SessionMissingError,
+  SessionCorruptError,
+  SessionLockedError,
+} from "./session/errors.js";

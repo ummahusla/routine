@@ -28,6 +28,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
   return new Session({
     baseDir: opts.baseDir,
     sessionId,
+    ...(opts.cwd ? { cwd: opts.cwd } : {}),
     ...(opts.model ? { model: opts.model } : {}),
     ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
     ...(opts.logger ? { logger: opts.logger } : {}),
@@ -43,6 +44,7 @@ export async function loadSession(opts: LoadSessionOptions): Promise<Session> {
   return new Session({
     baseDir: opts.baseDir,
     sessionId: opts.sessionId,
+    ...(opts.cwd ? { cwd: opts.cwd } : {}),
     ...(opts.model ? { model: opts.model } : {}),
     ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
     ...(opts.logger ? { logger: opts.logger } : {}),

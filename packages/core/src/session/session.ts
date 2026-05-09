@@ -1,5 +1,5 @@
 import { Agent } from "@cursor/sdk";
-import { mapToHarnessError } from "../errors.js";
+import { type HarnessError, mapToHarnessError } from "../errors.js";
 import { normalize } from "../normalizer.js";
 import { withRetry } from "../retry.js";
 import { PluginHost } from "../plugin/host.js";
@@ -39,6 +39,16 @@ import type {
 export type SessionInternalOptions = {
   baseDir: string;
   sessionId: string;
+  /**
+   * Optional override for the per-turn working directory.
+   *
+   * When unset, the workspace lives at `baseDir/sessions/<id>/workspace`
+   * (the default for a multi-turn Session). When set, that directory is
+   * used as both `RuntimeContext.cwd` for plugins and the Cursor SDK's
+   * `local.cwd`. The legacy `runPrompt` wrapper uses this to honor the
+   * caller-supplied `cwd` instead of an isolated session workspace.
+   */
+  cwd?: string;
   model?: string;
   apiKey?: string;
   logger?: Logger;
@@ -65,12 +75,18 @@ export class Session {
     | { abort: AbortController; runCancel?: () => Promise<void> }
     | undefined;
   private closed = false;
+  /**
+   * Last `HarnessError` produced by a `failed_to_start` turn. The legacy
+   * `runPrompt` wrapper reads this to re-throw the original error class
+   * (Session.send catches and returns a result instead of throwing).
+   */
+  lastError: HarnessError | undefined;
 
   constructor(opts: SessionInternalOptions) {
     this.baseDir = opts.baseDir;
     this.sessionId = opts.sessionId;
     this.sessionDir = sessionDir(opts.baseDir, opts.sessionId);
-    this.workspaceDir = workspaceDir(opts.baseDir, opts.sessionId);
+    this.workspaceDir = opts.cwd ?? workspaceDir(opts.baseDir, opts.sessionId);
     const meta = readChatMeta(chatPath(opts.baseDir, opts.sessionId));
     this.model = opts.model ?? meta.model;
     this.apiKey = opts.apiKey ?? process.env.CURSOR_API_KEY ?? "";
@@ -85,6 +101,9 @@ export class Session {
 
   async send(prompt: string, opts: SendTurnOptions = {}): Promise<TurnResult> {
     if (this.activeTurn) throw new SessionBusyError(this.sessionId);
+    // Clear any error captured by a prior turn so callers can read
+    // `lastError` after this send to detect *this* turn's outcome.
+    this.lastError = undefined;
     const abort = new AbortController();
     if (opts.signal) {
       const onAbort = (): void => abort.abort();
@@ -227,6 +246,10 @@ export class Session {
           },
         );
       } catch (e) {
+        // mapToHarnessError has already run inside withRetry's body; e is a
+        // HarnessError. Stash it so callers like runPrompt can re-throw
+        // the original error class instead of just the persisted message.
+        this.lastError = mapToHarnessError(e);
         const message = (e as Error).message ?? String(e);
         const code = (e as { code?: string }).code;
         emit(
@@ -273,64 +296,95 @@ export class Session {
         },
       );
 
+      let midStreamError: HarnessError | undefined;
       try {
-        for await (const msg of live.run.stream()) {
-          if (abort.signal.aborted && !this.activeTurn?.runCancel) break;
-          if (abort.signal.aborted) {
-            await live.run.cancel();
-            // dedupe — drop cancel hook so the outer cancel() doesn't fire it again
-            if (this.activeTurn) delete this.activeTurn.runCancel;
-          }
-          const events = normalize(msg, this.logger);
-          for (const e of events) {
-            const out = host.intercept(e, ctx);
-            for (const e2 of out) {
-              persistEvent(e2);
-              if (e2.type === "text") finalText += e2.delta;
-              onEvent(e2);
-              if (e2.type === "tool_start" || e2.type === "tool_end") {
-                const snap: ToolCallSnapshot = {
-                  callId: e2.callId,
-                  name: e2.name,
-                  status:
-                    e2.type === "tool_start"
-                      ? "running"
-                      : e2.ok
-                        ? "completed"
-                        : "error",
-                  ...(e2.args !== undefined ? { args: e2.args } : {}),
-                  ...(e2.type === "tool_end" && e2.result !== undefined
-                    ? { result: e2.result }
-                    : {}),
-                };
-                host.fireToolCall(snap, ctx);
+        try {
+          for await (const msg of live.run.stream()) {
+            if (abort.signal.aborted) {
+              // Cancel the live run, then break immediately. Legacy
+              // runPrompt did the same — no further events are emitted
+              // after the caller has aborted.
+              if (this.activeTurn?.runCancel) {
+                await live.run.cancel();
+                delete this.activeTurn.runCancel;
+              }
+              status = "cancelled";
+              break;
+            }
+            const events = normalize(msg, this.logger);
+            for (const e of events) {
+              const out = host.intercept(e, ctx);
+              for (const e2 of out) {
+                persistEvent(e2);
+                if (e2.type === "text") finalText += e2.delta;
+                onEvent(e2);
+                if (e2.type === "tool_start" || e2.type === "tool_end") {
+                  const snap: ToolCallSnapshot = {
+                    callId: e2.callId,
+                    name: e2.name,
+                    status:
+                      e2.type === "tool_start"
+                        ? "running"
+                        : e2.ok
+                          ? "completed"
+                          : "error",
+                    ...(e2.args !== undefined ? { args: e2.args } : {}),
+                    ...(e2.type === "tool_end" && e2.result !== undefined
+                      ? { result: e2.result }
+                      : {}),
+                  };
+                  host.fireToolCall(snap, ctx);
+                }
               }
             }
           }
-        }
-        // After cancel, drain to terminal with timeout.
-        const wait = await Promise.race([
-          live.run.wait(),
-          new Promise<{ status: string; usage?: Usage }>((resolve) =>
-            setTimeout(
-              () => resolve({ status: abort.signal.aborted ? "cancelled" : "completed" }),
-              5_000,
-            ),
-          ),
-        ]);
-        const waitStatus = (wait as { status?: string }).status?.toLowerCase();
-        if (waitStatus === "cancelled") status = "cancelled";
-        else if (waitStatus && waitStatus !== "completed" && waitStatus !== "finished") {
+        } catch (e) {
+          // Mid-stream errors must surface as HarnessError instances so
+          // callers (and runPrompt's tests) can `instanceof NetworkError`
+          // them. Normalize here, defer the throw until after agent.close()
+          // and the persisted turn_end emit.
+          midStreamError = mapToHarnessError(e);
           status = "failed";
         }
-        const u = (wait as { usage?: Usage }).usage;
-        if (u) usage = u;
+        if (!midStreamError) {
+          // Drain to terminal with timeout. For cancelled runs we still
+          // race wait() to harvest a usage value if the SDK provides one.
+          const wait = await Promise.race([
+            live.run.wait(),
+            new Promise<{ status?: string; usage?: Usage }>((resolve) =>
+              setTimeout(
+                () => resolve({ status: abort.signal.aborted ? "cancelled" : "completed" }),
+                5_000,
+              ),
+            ),
+          ]);
+          const waitStatus = (wait as { status?: string }).status?.toLowerCase();
+          if (status !== "cancelled") {
+            if (waitStatus === "cancelled") status = "cancelled";
+            else if (waitStatus && waitStatus !== "completed" && waitStatus !== "finished") {
+              status = "failed";
+            }
+          }
+          const u = (wait as { usage?: Usage }).usage;
+          if (u) usage = u;
+        }
       } finally {
         try {
           await live.agent.close();
         } catch {
           /* ignore disposal errors */
         }
+      }
+      if (midStreamError) {
+        this.lastError = midStreamError;
+        // Persist an error event so the JSONL log captures the failure,
+        // matching the failed_to_start path. The outer finally will still
+        // emit turn_end below before the rethrow propagates.
+        const message = midStreamError.message;
+        emit(
+          { kind: "error", v: 1, ts: ts(), turnId, message },
+          { type: "error", turnId, message },
+        );
       }
     } finally {
       try {
@@ -360,6 +414,13 @@ export class Session {
       },
     );
     await this.updateMeta({ turnStatus: status, ...(usage ? { usage } : {}) });
+
+    if (this.lastError && status === "failed") {
+      // Mid-stream HarnessError captured above. Persist + emit are done;
+      // surface the original error class to the caller so they can
+      // `instanceof` it (legacy runPrompt contract).
+      throw this.lastError;
+    }
 
     return { turnId, status, finalText, ...(usage ? { usage } : {}) };
   }

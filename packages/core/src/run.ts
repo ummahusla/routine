@@ -1,157 +1,88 @@
-import { randomUUID } from "node:crypto";
-import { Agent } from "@cursor/sdk";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { resolveConfig } from "./config.js";
-import { mapToHarnessError } from "./errors.js";
-import { normalize } from "./normalizer.js";
-import { withRetry } from "./retry.js";
-import { PluginHost } from "./plugin/host.js";
-import type {
-  Logger,
-  RunOptions,
-  RunResult,
-  RunStatus,
-  RuntimeContext,
-  ToolCallSnapshot,
-} from "./types.js";
+import { createSession } from "./session/index.js";
+import type { RunOptions, RunResult } from "./types.js";
 
-type LiveRun = {
-  agent: Awaited<ReturnType<typeof Agent.create>>;
-  run: Awaited<ReturnType<Awaited<ReturnType<typeof Agent.create>>["send"]>>;
-};
-
-async function startWithRetry(
-  cfg: ReturnType<typeof resolveConfig>,
-  prompt: string,
-  signal: AbortSignal | undefined,
-  logger: Logger | undefined,
-  mcpServers: Record<string, import("@cursor/sdk").McpServerConfig> | undefined,
-): Promise<LiveRun> {
-  return withRetry<LiveRun>(
-    async () => {
-      let agent;
-      try {
-        agent = await Agent.create({
-          apiKey: cfg.apiKey,
-          model: { id: cfg.model },
-          local: { cwd: cfg.cwd, settingSources: ["project", "user"] },
-          ...(mcpServers && Object.keys(mcpServers).length > 0
-            ? { mcpServers }
-            : {}),
-        });
-      } catch (e) {
-        throw mapToHarnessError(e);
-      }
-      try {
-        const run = await agent.send(prompt);
-        return { agent, run };
-      } catch (e) {
-        try {
-          await agent.close();
-        } catch {
-          /* ignore disposal failure during retry path */
-        }
-        throw mapToHarnessError(e);
-      }
-    },
-    {
-      attempts: cfg.retry.attempts,
-      baseDelayMs: cfg.retry.baseDelayMs,
-      ...(signal ? { signal } : {}),
-      ...(logger ? { logger } : {}),
-    },
-  );
-}
-
+/**
+ * Thin wrapper around a single-shot {@link createSession}+{@link Session.send}.
+ *
+ * Preserves the legacy {@link runPrompt} contract that callers (and tests)
+ * still depend on:
+ *
+ * - Synthesizes `{type:"status", phase:"starting"}` BEFORE invoking the agent
+ *   and `{type:"status", phase:"done"}` AFTER the run completes. Session does
+ *   not emit these on its own.
+ * - Drops the multi-turn `user`/`turn_open`/`turn_start`/`turn_end`/`error`
+ *   events Session.send produces — the legacy `onEvent` only ever saw
+ *   `HarnessEvent`s.
+ * - Honors the caller-supplied `cwd` as the per-turn working directory
+ *   (via Session's `cwd` override), instead of an isolated session
+ *   workspace under `baseDir/sessions/<id>/workspace`.
+ * - Re-throws on `failed_to_start` so callers still get `AuthError` /
+ *   `NetworkError` / etc. as rejected promises (Session.send catches these
+ *   internally and returns a result; runPrompt's contract is to throw).
+ *   Mid-stream `HarnessError`s already throw out of `session.send`.
+ */
 export async function runPrompt(opts: RunOptions): Promise<RunResult> {
   const cfg = resolveConfig(opts);
-  const { signal, logger } = opts;
-  const plugins = opts.plugins ?? [];
-  const host = new PluginHost(plugins);
+  const baseDir = cfg.baseDir ?? mkdtempSync(join(tmpdir(), "flow-build-cli-"));
 
-  const ctx: RuntimeContext = {
-    cwd: cfg.cwd,
-    model: cfg.model,
-    runId: randomUUID(),
-    signal: signal ?? new AbortController().signal,
-    logger: logger ?? { warn: () => {} },
-    state: new Map(),
-  };
-
+  // Preserve legacy contract: synthesize status:starting before agent run.
   opts.onEvent({ type: "status", phase: "starting" });
 
-  let finalText = "";
-  let status: RunStatus = "completed";
-  let usage: RunResult["usage"];
-
+  const session = await createSession({
+    baseDir,
+    title: cfg.prompt.slice(0, 60),
+    cwd: cfg.cwd,
+    model: cfg.model,
+    apiKey: cfg.apiKey,
+    ...(opts.logger ? { logger: opts.logger } : {}),
+    ...(cfg.retry ? { retry: cfg.retry } : {}),
+    ...(opts.plugins ? { plugins: opts.plugins } : {}),
+  });
   try {
-    await host.runPreRun(ctx);
-    await host.runSystemPrompt(ctx);
-    const prefix = await host.runPromptPrefix(ctx);
-    const finalPrompt = prefix.length > 0 ? `${prefix}\n\n${cfg.prompt}` : cfg.prompt;
-
-    const mcpServers = await host.runProvideMcpServers(ctx);
-
-    const live = await startWithRetry(cfg, finalPrompt, signal, logger, mcpServers);
-
-    try {
-      for await (const msg of live.run.stream()) {
-        if (signal?.aborted) {
-          await live.run.cancel();
-          status = "cancelled";
-          break;
+    const result = await session.send(opts.prompt, {
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      onEvent: (e) => {
+        // Pass through the HarnessEvent subset; non-Harness events
+        // (`user`, `turn_*`, `error`) are dropped — the legacy onEvent
+        // never saw them.
+        if (
+          e.type === "text" ||
+          e.type === "thinking" ||
+          e.type === "tool_start" ||
+          e.type === "tool_end" ||
+          e.type === "status"
+        ) {
+          opts.onEvent(e);
         }
-        const events = normalize(msg, logger);
-        for (const e of events) {
-          const out = host.intercept(e, ctx);
-          for (const e2 of out) {
-            if (e2.type === "text") finalText += e2.delta;
-            opts.onEvent(e2);
-            if (e2.type === "tool_start") {
-              const snap: ToolCallSnapshot = {
-                callId: e2.callId,
-                name: e2.name,
-                status: "running",
-                ...(e2.args !== undefined ? { args: e2.args } : {}),
-              };
-              host.fireToolCall(snap, ctx);
-            }
-            if (e2.type === "tool_end") {
-              const snap: ToolCallSnapshot = {
-                callId: e2.callId,
-                name: e2.name,
-                status: e2.ok ? "completed" : "error",
-                ...(e2.args !== undefined ? { args: e2.args } : {}),
-              };
-              host.fireToolCall(snap, ctx);
-            }
-          }
-        }
-      }
-      if (status !== "cancelled") {
-        const wait = await live.run.wait();
-        const waitStatus = (wait as { status?: string }).status?.toLowerCase();
-        if (waitStatus === "cancelled") status = "cancelled";
-        else if (waitStatus && waitStatus !== "completed" && waitStatus !== "finished") {
-          status = "failed";
-        }
-        const u = (wait as { usage?: { inputTokens: number; outputTokens: number } }).usage;
-        if (u) usage = u;
-      }
-    } catch (e) {
-      throw mapToHarnessError(e);
-    } finally {
-      try {
-        await live.agent.close();
-      } catch {
-        /* swallow disposal errors; primary error already in flight if any */
-      }
+      },
+    });
+
+    if (result.status === "failed_to_start") {
+      // Legacy runPrompt let AuthError/NetworkError/etc. propagate; Session
+      // captured the original HarnessError on `lastError` so we can rethrow
+      // it with the right class.
+      throw session.lastError ?? new Error("agent failed to start");
     }
 
+    // Preserve legacy contract: synthesize status:done after run.
     opts.onEvent({ type: "status", phase: "done" });
-    const result: RunResult = { status, finalText };
-    if (usage) result.usage = usage;
-    return result;
+
+    const status: RunResult["status"] =
+      result.status === "completed"
+        ? "completed"
+        : result.status === "cancelled"
+          ? "cancelled"
+          : "failed";
+    return {
+      status,
+      finalText: result.finalText,
+      ...(result.usage ? { usage: result.usage } : {}),
+    };
   } finally {
-    await host.cleanup(ctx);
+    await session.close();
   }
 }

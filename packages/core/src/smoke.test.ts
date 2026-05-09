@@ -116,7 +116,11 @@ describe("plugin layer + rote integration smoke", () => {
     expect(sentPrompt!).toContain("[rote runtime");
     expect(sentPrompt!).toContain("0.99.0");
     expect(sentPrompt!).toContain("github-api");
-    expect(sentPrompt!).toContain("\n\nsummarize");
+    // runPrompt now layers Session.send under the hood, which prefixes the
+    // user turn with "User: " for replay disambiguation. Assert the
+    // structural <plugin prefix>\n\nUser: <prompt> shape rather than the
+    // legacy raw-prompt suffix.
+    expect(sentPrompt!).toContain("\n\nUser: summarize");
 
     const textEvents = events.filter(
       (e): e is Extract<HarnessEvent, { type: "text" }> => e.type === "text",

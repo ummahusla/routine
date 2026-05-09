@@ -62,6 +62,12 @@ export type SendTurnOptions = {
 export type CreateSessionOptions = {
   baseDir: string;
   title?: string;
+  /**
+   * Optional override for the per-turn working directory. When unset,
+   * the workspace lives at `baseDir/sessions/<id>/workspace`. The legacy
+   * `runPrompt` wrapper sets this to honor a caller-supplied `cwd`.
+   */
+  cwd?: string;
   model?: string;
   apiKey?: string;
   logger?: Logger;
@@ -72,6 +78,8 @@ export type CreateSessionOptions = {
 export type LoadSessionOptions = {
   baseDir: string;
   sessionId: string;
+  /** See {@link CreateSessionOptions.cwd}. */
+  cwd?: string;
   model?: string;
   apiKey?: string;
   logger?: Logger;
