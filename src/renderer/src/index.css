@@ -56,7 +56,7 @@ kbd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; pad
 .sb-item-id { color: var(--dim); font-size: 10.5px; font-family: "Geist Mono", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-item-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; color: var(--dim); font-size: 10.5px; flex-shrink: 0; }
 .sb-item-when { color: var(--dim); font-size: 11px; flex-shrink: 0; }
-.sb-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.sb-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; align-self: center; }
 .sb-dot-deployed { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 18%, transparent); }
 .sb-dot-draft    { background: var(--dim); }
 .sb-dot-running  { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 30%, transparent); animation: pulse 1.2s ease-in-out infinite; }
@@ -282,6 +282,8 @@ body.is-panning, body.is-panning * { cursor: grabbing !important; }
 .session-banner strong { color: var(--text); font-family: "Geist Mono", monospace; font-size: 11px; font-weight: 500; }
 .session-banner span:first-child { color: var(--accent); }
 .lg { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; padding: 8px 12px; background: rgba(19,19,22,0.85); border: 1px solid var(--border); border-radius: 8px; backdrop-filter: blur(8px); z-index: 3; pointer-events: none; }
+.cf-stage:has(> .session-banner) .lg { top: 35px; }
+.chatflow-session .lg { top: 35px; }
 .lg-it { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--muted); }
 .lg-sw { width: 8px; height: 8px; border-radius: 2px; }
 
