@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { NODE_W, NODE_H } from "../data/constants";
 import { nodePos, edgeGeom, PAD_X, PAD_Y } from "../utils/flow";
 import { FlowNode } from "./FlowNode";
@@ -12,8 +12,16 @@ type DragState = {
   startY: number;
   origX: number;
   origY: number;
+  groupIds: string[];
+  origPositions: Record<string, { x: number; y: number }>;
   moved: boolean;
 };
+
+type Marquee = { x: number; y: number; w: number; h: number };
+
+function nodeHeight(node: FlowNodeModel): number {
+  return node.type === "prompt" ? PROMPT_NODE_H : NODE_H;
+}
 
 type ConnectingState = {
   fromId: string;
@@ -51,8 +59,19 @@ export function FlowCanvas({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [hoverEdge, setHoverEdge] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<ConnectingState | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [marquee, setMarquee] = useState<Marquee | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+
+  // Esc clears the current selection.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent): void {
+      if (event.key === "Escape") setSelectedIds(new Set());
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (!flow) return null;
   const nodeMap = Object.fromEntries(flow.nodes.map((node) => [node.id, node])) as Record<string, FlowNodeModel>;
@@ -145,13 +164,41 @@ export function FlowCanvas({
 
   function handleNodeMouseDown(event: MouseEvent<HTMLDivElement>, node: FlowNodeModel): void {
     if (event.button !== 0) return;
+    const currentFlow = flow;
+    if (!currentFlow) return;
     const { x, y } = nodePos(node);
+
+    // Shift-click toggles the node in/out of the selection. A non-shift
+    // click on a node that isn't already selected collapses the selection
+    // to just that node; if it IS already selected, leave selection alone
+    // so the drag moves the whole group.
+    let activeSelection = selectedIds;
+    if (event.shiftKey) {
+      const next = new Set(selectedIds);
+      if (next.has(node.id)) next.delete(node.id);
+      else next.add(node.id);
+      setSelectedIds(next);
+      activeSelection = next;
+    } else if (!selectedIds.has(node.id)) {
+      activeSelection = new Set([node.id]);
+      setSelectedIds(activeSelection);
+    }
+
+    const groupIds = activeSelection.has(node.id) ? [...activeSelection] : [node.id];
+    const origPositions: Record<string, { x: number; y: number }> = {};
+    groupIds.forEach((id) => {
+      const n = nodeMap[id];
+      if (n) origPositions[id] = nodePos(n);
+    });
+
     dragRef.current = {
       id: node.id,
       startX: event.clientX,
       startY: event.clientY,
       origX: x,
       origY: y,
+      groupIds,
+      origPositions,
       moved: false,
     };
 
@@ -164,16 +211,63 @@ export function FlowCanvas({
         drag.moved = true;
         setDraggingId(drag.id);
       }
-      if (drag.moved) {
-        onMoveNode?.(drag.id, Math.max(0, drag.origX + dx), Math.max(0, drag.origY + dy));
+      if (!drag.moved) return;
+
+      // Primary node's tentative new position.
+      let nx = Math.max(0, drag.origX + dx);
+      let ny = Math.max(0, drag.origY + dy);
+
+      // Shift-snap: align the node so the line to its nearest connected
+      // neighbour is straight on whichever axis is closer. Only kicks in
+      // when dragging a single node — multi-select drag is purely free-move.
+      if (moveEvent.shiftKey && drag.groupIds.length === 1 && currentFlow) {
+        const neighbours: FlowNodeModel[] = [];
+        currentFlow.edges.forEach(([a, b]) => {
+          if (a === node.id && nodeMap[b]) neighbours.push(nodeMap[b]);
+          else if (b === node.id && nodeMap[a]) neighbours.push(nodeMap[a]);
+        });
+        const myH = nodeHeight(node);
+        const myCenterY = ny + myH / 2;
+        const myCenterX = nx + NODE_W / 2;
+        type SnapCandidate = { x: number; y: number; dist: number };
+        let best: SnapCandidate | null = null;
+        neighbours.forEach((nb) => {
+          const nbPos = nodePos(nb);
+          const nbH = nodeHeight(nb);
+          const nbCenterY = nbPos.y + nbH / 2;
+          const nbCenterX = nbPos.x + NODE_W / 2;
+          const candidates: SnapCandidate[] = [
+            { x: nx, y: nbCenterY - myH / 2, dist: Math.abs(myCenterY - nbCenterY) },
+            { x: nbCenterX - NODE_W / 2, y: ny, dist: Math.abs(myCenterX - nbCenterX) },
+          ];
+          candidates.forEach((c) => {
+            if (!best || c.dist < best.dist) best = c;
+          });
+        });
+        if (best) {
+          const winner = best as SnapCandidate;
+          nx = Math.max(0, winner.x);
+          ny = Math.max(0, winner.y);
+        }
       }
+
+      // Apply the resolved delta to every node in the drag group.
+      const realDx = nx - drag.origX;
+      const realDy = ny - drag.origY;
+      drag.groupIds.forEach((id) => {
+        const o = drag.origPositions[id];
+        if (!o) return;
+        onMoveNode?.(id, Math.max(0, o.x + realDx), Math.max(0, o.y + realDy));
+      });
     };
 
     const onUp = (): void => {
       const drag = dragRef.current;
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      if (drag && !drag.moved) onFocus?.(drag.id);
+      // Treat a no-drag click as "open inspector" — but only when the
+      // user wasn't shift-clicking (which is purely a selection gesture).
+      if (drag && !drag.moved && !event.shiftKey) onFocus?.(drag.id);
       dragRef.current = null;
       setDraggingId(null);
     };
@@ -182,27 +276,81 @@ export function FlowCanvas({
     window.addEventListener("mouseup", onUp);
   }
 
-  // Pan via left-click or middle-click on any empty canvas space. Skip
-  // nodes (they have their own drag) and any port/edge interactive bits.
+  // Middle-mouse pans the canvas. Left-click on empty space draws a
+  // rubber-band selection. Both skip nodes / ports / edge controls.
   function handleBgMouseDown(event: MouseEvent<HTMLDivElement>): void {
-    if (event.button !== 0 && event.button !== 1) return;
     if ((event.target as HTMLElement).closest(".fc-node, .fc-edge-hit, .fc-edge-del, .fc-palette")) return;
+
+    if (event.button === 1) {
+      event.preventDefault();
+      const scroller = document.querySelector<HTMLElement>(".cf-canvas-wrap");
+      if (!scroller) return;
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startScrollX = scroller.scrollLeft;
+      const startScrollY = scroller.scrollTop;
+      document.body.classList.add("is-panning");
+      const onMove = (moveEvent: globalThis.MouseEvent): void => {
+        scroller.scrollLeft = startScrollX - (moveEvent.clientX - startX);
+        scroller.scrollTop = startScrollY - (moveEvent.clientY - startY);
+      };
+      const onUp = (): void => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.classList.remove("is-panning");
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      return;
+    }
+
+    if (event.button !== 0) return;
     event.preventDefault();
-    const scroller = document.querySelector<HTMLElement>(".cf-canvas-wrap");
-    if (!scroller) return;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startScrollX = scroller.scrollLeft;
-    const startScrollY = scroller.scrollTop;
-    document.body.classList.add("is-panning");
+    const canvasEl = canvasRef.current;
+    const currentFlow = flow;
+    if (!canvasEl || !currentFlow) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const startX = event.clientX - rect.left;
+    const startY = event.clientY - rect.top;
+    const baseSelection = event.shiftKey ? new Set(selectedIds) : new Set<string>();
+    if (!event.shiftKey) setSelectedIds(new Set());
+    setMarquee({ x: startX, y: startY, w: 0, h: 0 });
+    let moved = false;
+
     const onMove = (moveEvent: globalThis.MouseEvent): void => {
-      scroller.scrollLeft = startScrollX - (moveEvent.clientX - startX);
-      scroller.scrollTop = startScrollY - (moveEvent.clientY - startY);
+      const r = canvasEl.getBoundingClientRect();
+      const cx = moveEvent.clientX - r.left;
+      const cy = moveEvent.clientY - r.top;
+      const dx = cx - startX;
+      const dy = cy - startY;
+      if (!moved && Math.hypot(dx, dy) > 3) moved = true;
+      const box: Marquee = {
+        x: Math.min(startX, cx),
+        y: Math.min(startY, cy),
+        w: Math.abs(dx),
+        h: Math.abs(dy),
+      };
+      setMarquee(box);
+      const next = new Set(baseSelection);
+      currentFlow.nodes.forEach((n) => {
+        const p = nodePos(n);
+        const h = nodeHeight(n);
+        const overlaps =
+          p.x < box.x + box.w &&
+          p.x + NODE_W > box.x &&
+          p.y < box.y + box.h &&
+          p.y + h > box.y;
+        if (overlaps) next.add(n.id);
+      });
+      setSelectedIds(next);
     };
+
     const onUp = (): void => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      document.body.classList.remove("is-panning");
+      setMarquee(null);
+      // A bare click (no drag) on the background clears selection.
+      if (!moved && !event.shiftKey) setSelectedIds(new Set());
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -296,6 +444,7 @@ export function FlowCanvas({
             runState={runState}
             dragging={draggingId === node.id}
             connecting={Boolean(connecting && connecting.fromId !== node.id && connecting.hoverId === node.id)}
+            selected={selectedIds.has(node.id)}
             onMouseDown={(event) => handleNodeMouseDown(event, node)}
             onPortDown={handlePortMouseDown}
             onDelete={() => onDeleteNode?.(node.id)}
@@ -307,6 +456,13 @@ export function FlowCanvas({
           <svg className="fc-edges fc-edges-overlay" width={W} height={H}>
             <path d={ghostPath()} className="fc-edge fc-edge-ghost" />
           </svg>
+        )}
+
+        {marquee && (
+          <div
+            className="fc-marquee"
+            style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }}
+          />
         )}
 
         {building && (
