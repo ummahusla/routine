@@ -15,6 +15,7 @@ export const SendInputSchema = z
   .object({
     sessionId: SessionIdSchema,
     prompt: z.string().min(1).max(200_000),
+    model: z.string().min(1).max(80).optional(),
   })
   .strict();
 

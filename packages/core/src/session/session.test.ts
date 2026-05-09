@@ -293,6 +293,52 @@ describe("Session.send", () => {
     expect(lastLine.status).toBe("failed");
   }, 10_000);
 
+  it("uses opts.model for Agent.create + turn_start, persists meta.model", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "composer-2" });
+    const fa = makeFakeAgent({
+      streamItems: [
+        { type: "assistant", message: { content: [{ type: "text", text: "ok" }] } },
+      ],
+      waitResult: { status: "completed", usage: { inputTokens: 1, outputTokens: 1 } },
+    });
+    const installed = installFakeSdk({ createBehavior: [{ agent: fa }] });
+
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({ baseDir: dir, sessionId: "S1", apiKey: "crsr_test" });
+    await session.send("hi", { model: "claude-4.7-opus" });
+
+    const cfg = installed.lastCreateConfig() as { model: { id: string } };
+    expect(cfg.model.id).toBe("claude-4.7-opus");
+
+    const lines = readFileSync(eventsPath(dir, "S1"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const turnStart = lines.find((l: { kind: string }) => l.kind === "turn_start");
+    expect(turnStart.model).toBe("claude-4.7-opus");
+
+    const meta = JSON.parse(readFileSync(join(dir, "sessions", "S1", "chat.json"), "utf8"));
+    expect(meta.model).toBe("claude-4.7-opus");
+  });
+
+  it("persists opts.model to meta even when Agent.create fails", async () => {
+    initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "composer-2" });
+    installFakeSdk({ createBehavior: [{ throws: new Error("auth bad") }] });
+
+    const { Session: S } = await import(SESSION_PATH);
+    const session = new S({
+      baseDir: dir,
+      sessionId: "S1",
+      apiKey: "crsr_test",
+      retry: { attempts: 1 },
+    });
+    const result = await session.send("hi", { model: "claude-4.7-opus" });
+    expect(result.status).toBe("failed_to_start");
+
+    const meta = JSON.parse(readFileSync(join(dir, "sessions", "S1", "chat.json"), "utf8"));
+    expect(meta.model).toBe("claude-4.7-opus");
+  });
+
   it("cancel mid-turn produces status=cancelled", async () => {
     initSession({ baseDir: dir, sessionId: "S1", title: "t", model: "m" });
     let resolveStream!: () => void;

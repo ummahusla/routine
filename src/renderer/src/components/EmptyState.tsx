@@ -1,17 +1,33 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { ModelInfo } from "@flow-build/core";
 import { PromptBox } from "./PromptBox";
 
 type EmptyStateProps = {
-  onSubmit: (value: string) => void;
+  onSubmit: (text: string, model: string) => void;
+  models: ModelInfo[];
+  initialModel: string;
+  onPickModel: (id: string) => void;
 };
 
-export function EmptyState({ onSubmit }: EmptyStateProps) {
+export function EmptyState({ onSubmit, models, initialModel, onPickModel }: EmptyStateProps) {
   const [val, setVal] = useState("");
+  const [model, setModel] = useState(initialModel);
+
+  // globalDefault arrives async on cold start; sync local model so user sees
+  // their stored default instead of the synchronous "composer-2" placeholder.
+  useEffect(() => {
+    setModel(initialModel);
+  }, [initialModel]);
+
+  function handleModelChange(id: string): void {
+    setModel(id);
+    onPickModel(id);
+  }
 
   function send(text?: string): void {
     const value = (text ?? val).trim();
     if (!value) return;
-    onSubmit(value);
+    onSubmit(value, model);
     setVal("");
   }
 
@@ -30,7 +46,15 @@ export function EmptyState({ onSubmit }: EmptyStateProps) {
         Describe the automation in plain English. Routine lays out the nodes, wires them up, and runs them on your stack.
       </p>
 
-      <PromptBox value={val} onChange={setVal} onSubmit={() => send()} large />
+      <PromptBox
+        value={val}
+        onChange={setVal}
+        onSubmit={() => send()}
+        large
+        model={model}
+        onModelChange={handleModelChange}
+        models={models}
+      />
     </div>
   );
 }

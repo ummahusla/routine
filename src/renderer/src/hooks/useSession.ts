@@ -121,7 +121,7 @@ export function useSession(
   turns: PersistedTurn[];
   loading: boolean;
   error?: string;
-  send: (prompt: string) => Promise<void>;
+  send: (prompt: string, model?: string) => Promise<void>;
   cancel: () => Promise<void>;
   clear: () => Promise<void>;
 } {
@@ -156,9 +156,9 @@ export function useSession(
   }, [sessionId, reloadKey]);
 
   const send = useCallback(
-    async (prompt: string) => {
+    async (prompt: string, model?: string) => {
       if (!sessionId) return;
-      await window.api.session.send(sessionId, prompt);
+      await window.api.session.send(sessionId, prompt, model);
     },
     [sessionId],
   );

@@ -1,4 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
+import type { ModelInfo } from "@flow-build/core";
+import { ModelPill } from "./ModelPill";
 
 type PromptBoxProps = {
   value: string;
@@ -11,6 +13,9 @@ type PromptBoxProps = {
   isRunning?: boolean;
   large?: boolean;
   placeholder?: string;
+  model: string;
+  onModelChange: (id: string) => void;
+  models: ModelInfo[];
 };
 
 export function PromptBox({
@@ -24,6 +29,9 @@ export function PromptBox({
   isRunning,
   large,
   placeholder,
+  model,
+  onModelChange,
+  models,
 }: PromptBoxProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -53,7 +61,14 @@ export function PromptBox({
         disabled={isRunning}
       />
       <div className="pb-bar">
-        <div className="pb-tools" />
+        <div className="pb-tools">
+          <ModelPill
+            value={model}
+            onChange={onModelChange}
+            models={models}
+            disabled={isRunning}
+          />
+        </div>
         {isRunning ? (
           <button type="button" className="pb-stop" onClick={onStop}>
             <span>Stop</span>

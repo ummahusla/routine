@@ -12,6 +12,7 @@ import { NodeInspector } from "./components/NodeInspector";
 import { PromptBox } from "./components/PromptBox";
 import { RunSidebar } from "./components/RunSidebar";
 import { useSession } from "./hooks/useSession";
+import type { ModelInfo } from "@flow-build/core";
 import type {
   Flow,
   FlowEdge,
@@ -121,6 +122,9 @@ export function App() {
   const [runListTick, setRunListTick] = useState(0);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [refineVal, setRefineVal] = useState("");
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [globalDefault, setGlobalDefault] = useState<string>("composer-2");
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
@@ -137,7 +141,7 @@ export function App() {
   const prevSessionIdRef = useRef<string | null>(null);
   const lastFlowbuilderCallRef = useRef<string | null>(null);
 
-  const { turns, loading: loadingTurns, send, cancel, clear } = useSession(selectedSessionId ?? undefined, reloadKey);
+  const { metadata, turns, loading: loadingTurns, send, cancel, clear } = useSession(selectedSessionId ?? undefined, reloadKey);
   const lastTurn = turns[turns.length - 1];
   const isRunning = lastTurn?.status === "running";
 
@@ -154,6 +158,7 @@ export function App() {
   useEffect(() => {
     setChatError(null);
     setConfirmClearOpen(false);
+    setSelectedModel(undefined);
   }, [selectedSessionId]);
 
   useEffect(() => {
@@ -164,6 +169,36 @@ export function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [confirmClearOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [list, def] = await Promise.all([
+        window.api.models.list(),
+        window.api.app.getDefaultModel(),
+      ]);
+      if (cancelled) return;
+      setModels(list);
+      setGlobalDefault(def);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (metadata?.model) setSelectedModel(metadata.model);
+  }, [metadata?.model]);
+
+  const persistDefault = useCallback((id: string) => {
+    setGlobalDefault(id);
+    void window.api.app.setDefaultModel(id);
+  }, []);
+
+  function handleModelChange(id: string): void {
+    setSelectedModel(id);
+    persistDefault(id);
+  }
 
   const handleToggleSidebar = useCallback((): void => {
     setSidebarCollapsed((prev) => {
@@ -327,7 +362,7 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  async function handleSubmit(text: string): Promise<void> {
+  async function handleSubmit(text: string, model: string): Promise<void> {
     setManifest(null);
     setBuilding(true);
     setRunState({});
@@ -335,11 +370,12 @@ export function App() {
     setFbState(null);
 
     try {
-      const { sessionId } = await window.api.session.create({ title: text.slice(0, 80) });
+      const { sessionId } = await window.api.session.create({ title: text.slice(0, 80), model });
       setSelectedSessionId(sessionId);
       void loadSessions(sessionId);
+      persistDefault(model);
       window.api.session
-        .send(sessionId, text)
+        .send(sessionId, text, model)
         .catch(() => {})
         .finally(() => setReloadKey((current) => current + 1));
     } catch (createError) {
@@ -756,7 +792,7 @@ export function App() {
     }
 
     if (selectedSessionId) {
-      await send(value);
+      await send(value, selectedModel ?? metadata?.model ?? globalDefault);
     }
   }
 
@@ -797,7 +833,14 @@ export function App() {
           running={activeRunId !== null}
         />
 
-        {!selectedSessionId && !flow && !building && <EmptyState onSubmit={(text) => void handleSubmit(text)} />}
+        {!selectedSessionId && !flow && !building && (
+          <EmptyState
+            onSubmit={(text, model) => void handleSubmit(text, model)}
+            models={models}
+            initialModel={globalDefault}
+            onPickModel={persistDefault}
+          />
+        )}
 
         {selectedSessionId && loadingSessions && (
           <SessionPanel title="Loading sessions" body="Reading flowbuilder sessions from disk." detail={baseDir} />
@@ -882,6 +925,9 @@ export function App() {
                       ? "Chat about this read-only session..."
                       : "Refine the flow... e.g. 'add a Slack approval before sending'"
                   }
+                  model={selectedModel ?? metadata?.model ?? globalDefault}
+                  onModelChange={handleModelChange}
+                  models={models}
                 />
               </div>
             </div>
