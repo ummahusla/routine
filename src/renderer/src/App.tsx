@@ -63,6 +63,17 @@ const SMART_ADD_ITEMS = {
   code: { type: "transform", icon: "code", label: "Code", sub: "javascript" },
 } satisfies Record<string, PaletteItem>;
 
+/** Prefer the sink output node when multiple exist (matches engine final output). */
+function pickPrimaryOutputNode(nodes: FlowNode[], edges: FlowEdge[]): FlowNode | undefined {
+  const outs = nodes.filter((n) => n.type === "output");
+  if (outs.length === 0) return undefined;
+  if (outs.length === 1) return outs[0];
+  const hasOutgoing = new Set(edges.map(([from]) => from));
+  const sinks = outs.filter((o) => !hasOutgoing.has(o.id));
+  if (sinks.length === 1) return sinks[0];
+  return outs[outs.length - 1];
+}
+
 function SessionPanel({
   title,
   body,
@@ -163,7 +174,18 @@ export function App() {
     setChatError(null);
     setConfirmClearOpen(false);
     setSelectedModel(undefined);
+    setSelectedRunId(null);
   }, [selectedSessionId]);
+
+  const handleRunSidebarSelect = useCallback(
+    (runId: string) => {
+      setSelectedRunId(runId);
+      if (!flow) return;
+      const outputNode = pickPrimaryOutputNode(flow.nodes, flow.edges);
+      if (outputNode) setFocusId(outputNode.id);
+    },
+    [flow],
+  );
 
   useEffect(() => {
     if (!confirmClearOpen) return;
@@ -844,7 +866,8 @@ export function App() {
           <RunSidebar
             sessionId={selectedSessionId}
             refreshTick={runListTick}
-            onSelect={(runId) => setSelectedRunId(runId)}
+            selectedRunId={selectedRunId}
+            onSelect={handleRunSidebarSelect}
           />
         }
       />
