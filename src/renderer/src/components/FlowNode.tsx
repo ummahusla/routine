@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent, MouseEventHandler } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type MouseEventHandler, type UIEvent } from "react";
 import { ICONS } from "../data/icons";
 import { TYPE_COLORS } from "../data/typeColors";
 import { NODE_W, NODE_H } from "../data/constants";
@@ -47,6 +47,33 @@ export function FlowNode({
     ? { animationDelay: `${idx * 60}ms` }
     : { animation: "none", opacity: 1 };
 
+  const promptText = n.prompt || "";
+  const lineCount = promptText ? promptText.split("\n").length : 0;
+  const charCount = promptText.length;
+  const promptSub = lineCount > 1
+    ? `${lineCount} lines · ${charCount} chars`
+    : `${charCount} chars · editable`;
+
+  const llmTaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [llmOverflow, setLlmOverflow] = useState<"none" | "more" | "end">("none");
+
+  const measureLlm = () => {
+    const el = llmTaRef.current;
+    if (!el) return;
+    const overflows = el.scrollHeight - el.clientHeight > 1;
+    if (!overflows) {
+      setLlmOverflow("none");
+      return;
+    }
+    const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+    setLlmOverflow(atEnd ? "end" : "more");
+  };
+
+  useLayoutEffect(() => {
+    if (!isLlm) return;
+    measureLlm();
+  }, [isLlm, promptText]);
+
   return (
     <div
       className={`fc-node fc-type-${n.type} ${status ? `fc-status-${status}` : ""} ${dragging ? "is-dragging" : ""} ${isPromptLike ? "fc-node-prompt" : ""} ${connecting ? "is-connect-target" : ""} ${selected ? "is-selected" : ""}`}
@@ -68,7 +95,7 @@ export function FlowNode({
         </div>
         <div className="fc-label">
           <div className="fc-name">{n.label}</div>
-          <div className="fc-sub">{isPromptLike ? `${(n.prompt || "").length} chars · editable` : n.sub}</div>
+          <div className="fc-sub">{isPromptLike ? promptSub : n.sub}</div>
         </div>
       </div>
       {isPrompt && (
@@ -83,15 +110,22 @@ export function FlowNode({
       )}
       {isLlm && (
         <>
-          <textarea
-            className="fc-llm-prompt"
-            value={n.prompt || ""}
-            placeholder="Prompt template — {{input}} for upstream text"
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) => onPromptChange?.(n.id, event.target.value)}
-            rows={3}
-          />
+          <div className="fc-llm-prompt-wrap" data-overflow={llmOverflow}>
+            <textarea
+              ref={llmTaRef}
+              className="fc-llm-prompt"
+              value={n.prompt || ""}
+              placeholder="Prompt template — {{input}} for upstream text"
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => onPromptChange?.(n.id, event.target.value)}
+              onScroll={(event: UIEvent<HTMLTextAreaElement>) => {
+                const el = event.currentTarget;
+                const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+                setLlmOverflow(atEnd ? "end" : "more");
+              }}
+            />
+          </div>
           {streamingText && (
             <div className="fc-llm-stream">{streamingText}</div>
           )}
