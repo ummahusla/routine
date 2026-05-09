@@ -9,7 +9,9 @@ function valueAtPath(env: Envelope, segments: string[]): unknown {
   let cur: unknown = env.data;
   for (let i = 1; i < segments.length; i++) {
     if (cur === null || typeof cur !== "object") return undefined;
-    cur = (cur as Record<string, unknown>)[segments[i]];
+    const key = segments[i];
+    if (key === undefined) return undefined;
+    cur = (cur as Record<string, unknown>)[key];
     if (cur === undefined) return undefined;
   }
   return cur;

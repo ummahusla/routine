@@ -8,3 +8,4 @@ export type {
   CursorClient,
   CreateRunOptions,
 } from "./types.js";
+export { makeCursorClient } from "./cursorSingleShot.js";
