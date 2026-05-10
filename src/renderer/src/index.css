@@ -216,6 +216,7 @@ kbd {
   padding: 10px 8px 4px;
 }
 .sb-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -229,6 +230,7 @@ kbd {
   text-align: left;
   font-size: 12.5px;
   min-width: 0;
+  overflow: hidden;
 }
 .sb-item:hover {
   background: var(--surface-2);
@@ -275,6 +277,39 @@ kbd {
   color: var(--dim);
   font-size: 11px;
   flex-shrink: 0;
+}
+.sb-item-delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+  background: #ff6b6b;
+  border: 0;
+  border-radius: 0 6px 6px 0;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(100%);
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 120ms ease;
+}
+.sb-item:hover .sb-item-delete,
+.sb-item:focus-within .sb-item-delete {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+.sb-item-delete:hover {
+  background: #ff5252;
+}
+.app.is-rail .sb:not(:hover):not(:has(:focus-visible)) .sb-item-delete {
+  display: none;
 }
 .sb-dot {
   width: 6px;

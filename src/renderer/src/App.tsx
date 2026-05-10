@@ -142,6 +142,8 @@ export function App() {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingSession, setDeletingSession] = useState(false);
   const [chatHeight, setChatHeight] = useState(180);
   const [reloadKey, setReloadKey] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -686,6 +688,37 @@ export function App() {
     setConfirmClearOpen(true);
   }
 
+  function handleRequestDeleteSession(id: string): void {
+    setConfirmDeleteId(id);
+  }
+
+  async function handleConfirmDeleteSession(): Promise<void> {
+    if (!confirmDeleteId || deletingSession) return;
+    const idToDelete = confirmDeleteId;
+    setDeletingSession(true);
+    try {
+      await window.api.session.delete(idToDelete);
+      const wasSelected = selectedSessionId === idToDelete;
+      if (wasSelected) {
+        setSelectedSessionId(null);
+        setManifest(null);
+        setFlow(null);
+        setFbState(null);
+        setBuilding(false);
+        setRunning(false);
+        setRunState({});
+        setFocusId(null);
+      }
+      setConfirmDeleteId(null);
+      void loadSessions(wasSelected ? null : selectedSessionId);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete session");
+      setConfirmDeleteId(null);
+    } finally {
+      setDeletingSession(false);
+    }
+  }
+
   function handleMoveNode(id: string, x: number, y: number): void {
     if (readOnlySession) return;
     setFlow((current) =>
@@ -863,6 +896,7 @@ export function App() {
         onSelect={handleSelect}
         onNew={handleNew}
         onRefresh={handleRefresh}
+        onDelete={handleRequestDeleteSession}
         extras={
           <RunSidebar
             sessionId={selectedSessionId}
@@ -1020,6 +1054,43 @@ export function App() {
                 </button>
                 <button type="button" className="modal-btn modal-btn-danger" onClick={() => void handleClearChat()}>
                   Clear chat
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {confirmDeleteId && (
+          <div className="modal-backdrop" onClick={() => !deletingSession && setConfirmDeleteId(null)}>
+            <div
+              className="modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-session-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="modal-title" id="delete-session-title">
+                Delete chat?
+              </div>
+              <div className="modal-body">
+                This permanently deletes the chat, its transcript, graph, and run history from disk. This cannot be undone.
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="modal-btn modal-btn-ghost"
+                  onClick={() => setConfirmDeleteId(null)}
+                  disabled={deletingSession}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="modal-btn modal-btn-danger"
+                  onClick={() => void handleConfirmDeleteSession()}
+                  disabled={deletingSession}
+                >
+                  {deletingSession ? "Deleting..." : "Delete chat"}
                 </button>
               </div>
             </div>

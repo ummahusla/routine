@@ -6,6 +6,7 @@ type FlowItemProps = {
   session: FlowbuilderSessionSummary;
   active: boolean;
   onClick: () => void;
+  onDelete?: () => void;
 };
 
 function initials(name: string): string {
@@ -39,11 +40,19 @@ function relativeTime(value: string): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-function FlowItem({ session, active, onClick }: FlowItemProps) {
+function FlowItem({ session, active, onClick, onDelete }: FlowItemProps) {
   return (
-    <button
+    <div
       className={`sb-item sb-session ${active ? "is-active" : ""}`}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
       title={session.name}
     >
       <span className="sb-chip" style={{ background: chipColor(session.id) }}>
@@ -58,7 +67,27 @@ function FlowItem({ session, active, onClick }: FlowItemProps) {
         <span>{session.nodeCount} nodes</span>
         <span>{relativeTime(session.updatedAt)}</span>
       </span>
-    </button>
+      {onDelete && (
+        <button
+          type="button"
+          className="sb-item-delete"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          title="Delete chat"
+          aria-label={`Delete chat ${session.name}`}
+        >
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M3 6h18" />
+            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -75,6 +104,7 @@ type SidebarProps = {
   onSelect: (id: string) => void;
   onNew: () => void;
   onRefresh: () => void;
+  onDelete?: (id: string) => void;
   extras?: ReactNode;
 };
 
@@ -91,6 +121,7 @@ export function Sidebar({
   onSelect,
   onNew,
   onRefresh,
+  onDelete,
   extras,
 }: SidebarProps) {
   const [q, setQ] = useState("");
@@ -170,6 +201,7 @@ export function Sidebar({
               session={session}
               active={session.id === selectedId}
               onClick={() => onSelect(session.id)}
+              {...(onDelete ? { onDelete: () => onDelete(session.id) } : {})}
             />
           ))}
       </div>
