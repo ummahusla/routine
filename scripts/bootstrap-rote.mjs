@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,7 +8,36 @@ const adapterPath = resolve(root, 'resources/adapters/telegram.adapt')
 const ROTE_BIN = process.env.ROTE_BIN || 'rote'
 const ADAPTER_ID = 'telegram'
 const TOKEN_ENV = 'TELEGRAM_BOT_TOKEN'
-const TOKEN_VALUE = '8708001666:AAFb1h83nh9WvHCJTHwpuwEl1YndQ_Ek01c'
+
+function loadEnvFile(path) {
+  if (!existsSync(path)) return
+  const src = readFileSync(path, 'utf8')
+  for (const raw of src.split('\n')) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    const eq = line.indexOf('=')
+    if (eq < 1) continue
+    const key = line.slice(0, eq).trim()
+    let val = line.slice(eq + 1).trim()
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1)
+    }
+    if (!(key in process.env)) process.env[key] = val
+  }
+}
+
+loadEnvFile(resolve(root, '.env'))
+
+const TOKEN_VALUE = process.env[TOKEN_ENV]
+if (!TOKEN_VALUE) {
+  console.error(
+    `[bootstrap-rote] ${TOKEN_ENV} not set — add it to .env (see .env.example)`
+  )
+  process.exit(1)
+}
 
 function run(args, { capture = false } = {}) {
   const res = spawnSync(ROTE_BIN, args, {
