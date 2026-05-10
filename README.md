@@ -4,6 +4,8 @@ Routine is a desktop app that turns natural-language prompts into runnable, visu
 
 Built as an Electron + React app with [electron-vite](https://electron-vite.org/), packaged with [electron-builder](https://www.electron.build/).
 
+<img width="1512" height="945" alt="routine" src="https://github.com/user-attachments/assets/a1e31dd5-1b98-41c9-a094-6a06e9155175" />
+
 ## Project structure
 
 - [src/main/](src/main/) — Electron main process
