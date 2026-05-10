@@ -1,6 +1,6 @@
 # Routine
 
-Routine is a desktop app that turns natural-language prompts into runnable, visual automation flows. Describe what you want ("daily digest of GitHub trending repos to my team's email"), and FlowBuild generates a node-based flow you can inspect, edit on a canvas, refine via chat, and execute step by step.
+Routine is a desktop app that turns natural-language prompts into runnable, visual automation flows. Describe what you want ("daily digest of GitHub trending repos to my team's email"), and Routine generates a node-based flow you can inspect, edit on a canvas, refine via chat, and execute step by step.
 
 Built as an Electron + React app with [electron-vite](https://electron-vite.org/), packaged with [electron-builder](https://www.electron.build/).
 
