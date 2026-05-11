@@ -60,7 +60,7 @@
 ## Slide 7 — Contacts (~10s)
 
 - "Thank you. I'd love to talk to anyone running an agency or building automations."
-- Email + LinkedIn + GitHub on screen. "Find me after."
+- Email + LinkedIn on screen. "Find me after."
 
 ---
 
